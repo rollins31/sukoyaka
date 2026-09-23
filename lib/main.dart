@@ -188,6 +188,11 @@ ThemeData _buildTheme(ColorScheme colorScheme, TextTheme textTheme) {
     ),
     dialogTheme: DialogThemeData(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+      titleTextStyle: GoogleFonts.baloo2(
+        color: colorScheme.onSurface,
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+      ),
     ),
   );
 }
