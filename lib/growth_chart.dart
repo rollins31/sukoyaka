@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -81,6 +83,14 @@ class GrowthChart extends StatelessWidget {
     ];
     final colorScheme = Theme.of(context).colorScheme;
 
+    // fl_chart spaces bottom-axis ticks evenly across the x range by default,
+    // which for measurements taken hours apart on the same day produces
+    // several ticks that all format to the same calendar date. Flooring the
+    // spacing at one day keeps every visible tick on a distinct date.
+    const oneDayMs = Duration(days: 1);
+    final xRange = spots.last.x - spots.first.x;
+    final bottomInterval = math.max(oneDayMs.inMilliseconds.toDouble(), xRange / 6);
+
     return LineChart(
       LineChartData(
         lineBarsData: [
@@ -97,6 +107,7 @@ class GrowthChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 32,
+              interval: bottomInterval,
               getTitlesWidget: (value, meta) => Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
