@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'backup_data.dart';
 import 'diaper_entry.dart';
+import 'duration_format.dart';
 import 'empty_state.dart';
 import 'feeding_entry.dart';
 import 'feeding_entry_form.dart';
@@ -567,7 +568,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await _saveSleepEntries();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Slept for ${_formatDuration(active.duration!)}')),
+      SnackBar(content: Text('Slept for ${formatDuration(active.duration!)}')),
     );
   }
 
@@ -1113,30 +1114,6 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     );
   }
 
-  String _formatInterval(Duration interval) {
-    final hours = interval.inHours;
-    final minutes = interval.inMinutes % 60;
-    if (hours > 0 && minutes > 0) {
-      return '${hours}h ${minutes}m';
-    }
-    if (hours > 0) {
-      return '$hours hour${hours == 1 ? '' : 's'}';
-    }
-    return '$minutes minute${minutes == 1 ? '' : 's'}';
-  }
-
-  /// Compact duration for sleep sessions, e.g. "1h 24m 30s" or "8m 05s".
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-    final seconds = duration.inSeconds % 60;
-    final secondsStr = seconds.toString().padLeft(2, '0');
-    if (hours > 0) {
-      return '${hours}h ${minutes}m ${secondsStr}s';
-    }
-    return '${minutes}m ${secondsStr}s';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1255,7 +1232,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: Text(_formatInterval(_reminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
+                      Expanded(child: Text(formatInterval(_reminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
                       TextButton(onPressed: _pickReminderInterval, child: const Text('Change')),
                     ],
                   ),
@@ -1314,7 +1291,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 8),
               Text(
-                _formatDuration(DateTime.now().difference(active.start)),
+                formatDuration(DateTime.now().difference(active.start)),
                 style: GoogleFonts.baloo2(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
@@ -1332,7 +1309,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
               Text(
                 lastFinished == null
                     ? 'No sleep recorded yet'
-                    : 'Last slept ${_formatDuration(lastFinished.duration!)} '
+                    : 'Last slept ${formatDuration(lastFinished.duration!)} '
                         '(ended ${_formatFeedTime(lastFinished.end!)})',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
@@ -1411,8 +1388,8 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                 final entry = entries[index];
                 final inProgress = entry.isInProgress;
                 final durationLabel = inProgress
-                    ? '${_formatDuration(DateTime.now().difference(entry.start))} (ongoing)'
-                    : _formatDuration(entry.duration!);
+                    ? '${formatDuration(DateTime.now().difference(entry.start))} (ongoing)'
+                    : formatDuration(entry.duration!);
                 return Card(
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1567,7 +1544,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
               Row(
                 children: [
                   Expanded(
-                    child: Text(_formatInterval(_diaperReminderInterval), style: Theme.of(context).textTheme.bodyLarge),
+                    child: Text(formatInterval(_diaperReminderInterval), style: Theme.of(context).textTheme.bodyLarge),
                   ),
                   TextButton(onPressed: _pickDiaperReminderInterval, child: const Text('Change')),
                 ],
