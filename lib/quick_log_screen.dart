@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'feeding_entry.dart';
 import 'feeding_entry_form.dart';
 import 'home_widget_sync.dart';
-import 'main.dart' show NotificationService;
+import 'notification_service.dart';
 
 const _entriesKey = 'feeding_entries';
 const _intervalKey = 'reminder_interval_minutes';
