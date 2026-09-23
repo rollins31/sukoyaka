@@ -484,7 +484,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await _rescheduleDiaperReminder();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Diaper change recorded 👶')),
+      const SnackBar(content: Text('Diaper change recorded')),
     );
   }
 
@@ -540,7 +540,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await _saveSleepEntries();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sleep started 😴')),
+      const SnackBar(content: Text('Sleep started')),
     );
   }
 
@@ -567,7 +567,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await _saveSleepEntries();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Slept for ${_formatDuration(active.duration!)} 🌙')),
+      SnackBar(content: Text('Slept for ${_formatDuration(active.duration!)}')),
     );
   }
 
@@ -1096,10 +1096,10 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     return result;
   }
 
-  Widget _sectionTitle(String emoji, String text) {
+  Widget _sectionTitle(IconData icon, String text) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 20)),
+        Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 8),
         Text(
           text,
@@ -1216,10 +1216,10 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _sectionTitle('🍼', 'Last feeding'),
+                  _sectionTitle(Icons.local_drink, 'Last feeding'),
                   const SizedBox(height: 12),
                   Text(
-                    lastFeed == null ? 'No feeding recorded yet 💤' : _formatFeedTime(lastFeed),
+                    lastFeed == null ? 'No feeding recorded yet' : _formatFeedTime(lastFeed),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   if (lastEntry != null) ...[
@@ -1251,7 +1251,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                     ),
                   ],
                   const SizedBox(height: 20),
-                  _sectionTitle('⏰', 'Reminder interval'),
+                  _sectionTitle(Icons.schedule, 'Reminder interval'),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -1260,10 +1260,10 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  _sectionTitle('🔔', 'Next reminder'),
+                  _sectionTitle(Icons.notifications, 'Next reminder'),
                   const SizedBox(height: 12),
                   Text(
-                    nextReminder == null ? 'Record a feeding to set the next reminder 🌟' : _formatFeedTime(nextReminder),
+                    nextReminder == null ? 'Record a feeding to set the next reminder' : _formatFeedTime(nextReminder),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 12),
@@ -1285,7 +1285,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           _buildGrowthCard(),
           const SizedBox(height: 16),
           Text(
-            'Peek at the Feedings, Sleep, or Diapers tabs to review, edit, or delete past records. 💕',
+            'Peek at the Feedings, Sleep, or Diapers tabs to review, edit, or delete past records.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
@@ -1305,7 +1305,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _sectionTitle('😴', 'Sleep'),
+            _sectionTitle(Icons.bedtime, 'Sleep'),
             const SizedBox(height: 12),
             if (active != null) ...[
               Text(
@@ -1331,7 +1331,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
             ] else ...[
               Text(
                 lastFinished == null
-                    ? 'No sleep recorded yet 💤'
+                    ? 'No sleep recorded yet'
                     : 'Last slept ${_formatDuration(lastFinished.duration!)} '
                         '(ended ${_formatFeedTime(lastFinished.end!)})',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -1541,11 +1541,11 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _sectionTitle('👶', 'Diaper change'),
+            _sectionTitle(Icons.baby_changing_station, 'Diaper change'),
             const SizedBox(height: 12),
             Text(
               lastDiaper == null
-                  ? 'No diaper changes recorded yet 💤'
+                  ? 'No diaper changes recorded yet'
                   : '${lastDiaper.contentsLabel} • ${_formatFeedTime(lastDiaper.time)}',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
@@ -1554,7 +1554,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
               Text(lastDiaper.notes, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ],
             const SizedBox(height: 20),
-            _sectionTitle('⏰', 'Diaper reminder'),
+            _sectionTitle(Icons.schedule, 'Diaper reminder'),
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -1573,11 +1573,11 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                 ],
               ),
               const SizedBox(height: 20),
-              _sectionTitle('🔔', 'Next reminder'),
+              _sectionTitle(Icons.notifications, 'Next reminder'),
               const SizedBox(height: 12),
               Text(
                 nextDiaperReminder == null
-                    ? 'Record a diaper change to set the next reminder 🌟'
+                    ? 'Record a diaper change to set the next reminder'
                     : _formatFeedTime(nextDiaperReminder),
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
@@ -1598,7 +1598,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   Widget _buildGrowthCard() {
     final last = _growthEntries.isEmpty ? null : _growthEntries.last;
     final summary = last == null
-        ? 'No measurements recorded yet 💤'
+        ? 'No measurements recorded yet'
         : '${[
             if (last.weight != null) 'Weight: ${last.weight} ${last.weightUnit}',
             if (last.height != null) 'Height: ${last.height} ${last.heightUnit}',
@@ -1610,7 +1610,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _sectionTitle('📏', 'Growth'),
+            _sectionTitle(Icons.monitor_weight, 'Growth'),
             const SizedBox(height: 12),
             Text(
               summary,

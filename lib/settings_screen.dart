@@ -187,7 +187,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text('🌓', style: TextStyle(fontSize: 20)),
+                      Icon(Icons.brightness_medium, size: 20, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
                       Text(
                         'Appearance',
@@ -239,7 +239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text('💾', style: TextStyle(fontSize: 20)),
+                      Icon(Icons.save, size: 20, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
                       Text(
                         'Backup & restore',
@@ -287,7 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text('🖨️', style: TextStyle(fontSize: 20)),
+                      Icon(Icons.picture_as_pdf, size: 20, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
                       Text(
                         'PDF report',
@@ -373,7 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text('ℹ️', style: TextStyle(fontSize: 20)),
+                      Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
                       Text(
                         'About',
