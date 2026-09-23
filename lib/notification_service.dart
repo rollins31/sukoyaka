@@ -151,7 +151,11 @@ class NotificationService {
       _webTimers.remove(id)?.cancel();
       return;
     }
-    await _plugin.cancel(id: id);
+    try {
+      await _plugin.cancel(id: id);
+    } catch (e) {
+      debugPrint('cancel() error: $e');
+    }
   }
 
   static Future<void> scheduleFeedReminder(DateTime scheduledTime) => _schedule(
