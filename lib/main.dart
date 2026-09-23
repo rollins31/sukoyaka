@@ -1380,7 +1380,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.all(16),
+            // Extra bottom padding keeps the last card clear of the floating
+            // "Add Sleep" button, which would otherwise sit on top of it.
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             sliver: SliverList.separated(
               itemCount: entries.length,
               separatorBuilder: (context, _) => const SizedBox(height: 12),
@@ -1647,7 +1649,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      // Extra bottom padding keeps the last card clear of the floating
+      // "Record Change" button, which would otherwise sit on top of it.
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
@@ -1818,7 +1822,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      // Extra bottom padding keeps the last card clear of the floating
+      // "Record Feeding" button, which would otherwise sit on top of it.
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];

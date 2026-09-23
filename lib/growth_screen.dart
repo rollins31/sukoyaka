@@ -277,7 +277,9 @@ class _GrowthScreenState extends State<GrowthScreen> {
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.all(16),
+      // Extra bottom padding keeps the last card clear of the floating
+      // "Add Measurement" button, which would otherwise sit on top of it.
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate(
           (context, index) {
