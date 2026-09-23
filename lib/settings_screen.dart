@@ -131,6 +131,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       initialDateRange: _reportRange,
+      // Calendar-only: typing a range as raw mm/dd/yyyy text is fussier than
+      // just tapping the two dates, and error-prone if the format's off.
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
     );
     if (picked == null) return;
     setState(() => _reportRange = picked);

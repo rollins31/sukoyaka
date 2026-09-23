@@ -16,6 +16,9 @@ Future<DateTime?> pickDateTime(BuildContext context, DateTime initial) async {
     initialDate: initial,
     firstDate: DateTime.now().subtract(const Duration(days: 365)),
     lastDate: DateTime.now().add(const Duration(days: 365)),
+    // Calendar-only: typing a date as raw mm/dd/yyyy text is fussier than
+    // just tapping it, and error-prone if the format's off.
+    initialEntryMode: DatePickerEntryMode.calendarOnly,
   );
   if (date == null) return null;
   if (!context.mounted) return null;
