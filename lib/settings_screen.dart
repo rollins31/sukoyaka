@@ -207,17 +207,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         segments: const [
                           ButtonSegment(
                             value: ThemeMode.system,
-                            label: Text('System'),
+                            label: FittedBox(fit: BoxFit.scaleDown, child: Text('System')),
                             icon: Icon(Icons.brightness_auto),
                           ),
                           ButtonSegment(
                             value: ThemeMode.light,
-                            label: Text('Light'),
+                            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Light')),
                             icon: Icon(Icons.light_mode),
                           ),
                           ButtonSegment(
                             value: ThemeMode.dark,
-                            label: Text('Dark'),
+                            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Dark')),
                             icon: Icon(Icons.dark_mode),
                           ),
                         ],
