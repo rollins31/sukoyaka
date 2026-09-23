@@ -1224,7 +1224,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                   const SizedBox(height: 12),
                   Text(
                     lastFeed == null ? 'No feeding recorded yet 💤' : _formatFeedTime(lastFeed),
-                    style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   if (lastEntry != null) ...[
                     const SizedBox(height: 12),
@@ -1234,14 +1234,14 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Milk type: ${lastEntry.milkType}', style: const TextStyle(fontSize: 16)),
+                              Text('Milk type: ${lastEntry.milkType}', style: Theme.of(context).textTheme.bodyLarge),
                               if (lastEntry.amount != null)
-                                Text('Amount: ${lastEntry.amount} ${lastEntry.amountUnit}', style: const TextStyle(fontSize: 16)),
+                                Text('Amount: ${lastEntry.amount} ${lastEntry.amountUnit}', style: Theme.of(context).textTheme.bodyLarge),
                               if (lastEntry.notes.isNotEmpty) ...[
                                 const SizedBox(height: 8),
-                                Text('Notes:', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                Text('Notes:', style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 4),
-                                Text(lastEntry.notes, style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                Text(lastEntry.notes, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                               ],
                             ],
                           ),
@@ -1259,7 +1259,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: Text(_formatInterval(_reminderInterval), style: const TextStyle(fontSize: 16))),
+                      Expanded(child: Text(_formatInterval(_reminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
                       TextButton(onPressed: _pickReminderInterval, child: const Text('Change')),
                     ],
                   ),
@@ -1268,7 +1268,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                   const SizedBox(height: 12),
                   Text(
                     nextReminder == null ? 'Record a feeding to set the next reminder 🌟' : _formatFeedTime(nextReminder),
-                    style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
@@ -1314,7 +1314,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
             if (active != null) ...[
               Text(
                 'Sleeping since ${_formatFeedTime(active.start)}',
-                style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 8),
               Text(
@@ -1338,7 +1338,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                     ? 'No sleep recorded yet 💤'
                     : 'Last slept ${_formatDuration(lastFinished.duration!)} '
                         '(ended ${_formatFeedTime(lastFinished.end!)})',
-                style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
@@ -1551,11 +1551,11 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
               lastDiaper == null
                   ? 'No diaper changes recorded yet 💤'
                   : '${lastDiaper.contentsLabel} • ${_formatFeedTime(lastDiaper.time)}',
-              style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             if (lastDiaper != null && lastDiaper.notes.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(lastDiaper.notes, style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              Text(lastDiaper.notes, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ],
             const SizedBox(height: 20),
             _sectionTitle('⏰', 'Diaper reminder'),
@@ -1571,7 +1571,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
               Row(
                 children: [
                   Expanded(
-                    child: Text(_formatInterval(_diaperReminderInterval), style: const TextStyle(fontSize: 16)),
+                    child: Text(_formatInterval(_diaperReminderInterval), style: Theme.of(context).textTheme.bodyLarge),
                   ),
                   TextButton(onPressed: _pickDiaperReminderInterval, child: const Text('Change')),
                 ],
@@ -1583,7 +1583,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                 nextDiaperReminder == null
                     ? 'Record a diaper change to set the next reminder 🌟'
                     : _formatFeedTime(nextDiaperReminder),
-                style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ],
             const SizedBox(height: 12),
@@ -1618,7 +1618,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
             const SizedBox(height: 12),
             Text(
               summary,
-              style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
