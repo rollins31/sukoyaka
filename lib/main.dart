@@ -796,10 +796,10 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         feedings: _entries,
       );
       _handleExportResult(result, 'No feedings were found for the selected range.');
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn\'t export PDF: $e')),
+        const SnackBar(content: Text('Couldn\'t export PDF. Please try again.')),
       );
     }
   }
@@ -824,10 +824,10 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         diaperEntries: _diaperEntries,
       );
       _handleExportResult(result, 'No diaper changes were found for the selected range.');
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn\'t export PDF: $e')),
+        const SnackBar(content: Text('Couldn\'t export PDF. Please try again.')),
       );
     }
   }
@@ -853,10 +853,10 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         sleepEntries: _sleepEntries,
       );
       _handleExportResult(result, 'No sleep sessions found for ${_formatWeekRange(weekStart)}.');
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn\'t export PDF: $e')),
+        const SnackBar(content: Text('Couldn\'t export PDF. Please try again.')),
       );
     }
   }

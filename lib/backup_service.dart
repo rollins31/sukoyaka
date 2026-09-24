@@ -24,7 +24,9 @@ Future<void> shareBackup(AppBackup backup) async {
 /// Lets the user pick a `.json` backup file and parses it.
 ///
 /// Returns `null` if the user cancelled the picker. Throws [FormatException]
-/// if the file isn't valid backup JSON.
+/// with a message safe to show directly to the user — any lower-level parse
+/// error (bad JSON syntax, a missing field, a wrong type) is translated into
+/// one plain-language message rather than surfacing the raw exception.
 Future<AppBackup?> pickAndParseBackup() async {
   final picked = await FilePicker.pickFile(
     dialogTitle: 'Choose a Sukoyaka backup file',
@@ -33,10 +35,32 @@ Future<AppBackup?> pickAndParseBackup() async {
   );
   if (picked == null) return null;
 
-  final bytes = await picked.readAsBytes();
-  final decoded = jsonDecode(utf8.decode(bytes));
-  if (decoded is! Map<String, dynamic>) {
-    throw const FormatException('That file doesn\'t look like a Sukoyaka backup.');
+  const notABackupMessage =
+      'That file doesn\'t look like a Sukoyaka backup. Choose the .json file '
+      'from "Export backup".';
+
+  final Object decoded;
+  try {
+    final bytes = await picked.readAsBytes();
+    decoded = jsonDecode(utf8.decode(bytes));
+  } catch (_) {
+    throw const FormatException(notABackupMessage);
   }
-  return AppBackup.fromJson(decoded);
+  if (decoded is! Map<String, dynamic>) {
+    throw const FormatException(notABackupMessage);
+  }
+
+  final version = decoded['version'] as int? ?? 0;
+  if (version > backupFormatVersion) {
+    throw FormatException(
+      'This backup was made by a newer version of the app (format $version) '
+      'and can\'t be read here.',
+    );
+  }
+
+  try {
+    return AppBackup.fromJson(decoded);
+  } catch (_) {
+    throw const FormatException(notABackupMessage);
+  }
 }

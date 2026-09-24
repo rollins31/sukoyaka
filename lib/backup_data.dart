@@ -30,13 +30,6 @@ class AppBackup {
   final int diaperReminderIntervalMinutes;
 
   factory AppBackup.fromJson(Map<String, dynamic> json) {
-    final version = json['version'] as int? ?? 0;
-    if (version > backupFormatVersion) {
-      throw FormatException(
-        'This backup was made by a newer version of the app (format $version) '
-        'and can\'t be read here.',
-      );
-    }
     return AppBackup(
       exportedAt: DateTime.parse(json['exportedAt'] as String),
       feedings: (json['feedings'] as List<dynamic>? ?? [])

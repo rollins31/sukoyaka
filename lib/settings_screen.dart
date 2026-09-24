@@ -65,8 +65,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         diaperReminderIntervalMinutes: widget.diaperReminderInterval.inMinutes,
       );
       await shareBackup(backup);
-    } catch (e) {
-      _showError('Couldn\'t export backup: $e');
+    } catch (_) {
+      _showError('Couldn\'t export backup. Please try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -77,8 +77,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _busy = true);
     try {
       backup = await pickAndParseBackup();
-    } catch (e) {
-      _showError('Couldn\'t read that backup file: $e');
+    } on FormatException catch (e) {
+      _showError(e.message);
+    } catch (_) {
+      _showError('Couldn\'t read that backup file. Please try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -162,8 +164,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         case ReportExportResult.cancelled:
           break;
       }
-    } catch (e) {
-      _showError('Couldn\'t export PDF: $e');
+    } catch (_) {
+      _showError('Couldn\'t export PDF. Please try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
