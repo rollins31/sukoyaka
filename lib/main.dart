@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'backup_data.dart';
 import 'diaper_entry.dart';
+import 'diaper_entry_form.dart';
 import 'duration_format.dart';
 import 'empty_state.dart';
 import 'feeding_entry.dart';
@@ -21,6 +22,7 @@ import 'pdf_export.dart';
 import 'quick_log_screen.dart';
 import 'settings_screen.dart';
 import 'sleep_entry.dart';
+import 'sleep_entry_form.dart';
 import 'weekly_sleep_chart.dart';
 
 const _entriesKey = 'feeding_entries';
@@ -104,7 +106,9 @@ class MainApp extends StatelessWidget {
           darkTheme: _buildTheme(darkColorScheme, darkTextTheme),
           routes: {
             '/': (context) => const FeedingHome(),
-            '/quickLog': (context) => const QuickLogScreen(),
+            '/quickLog/feeding': (context) => const QuickLogScreen(type: QuickLogType.feeding),
+            '/quickLog/sleep': (context) => const QuickLogScreen(type: QuickLogType.sleep),
+            '/quickLog/diaper': (context) => const QuickLogScreen(type: QuickLogType.diaper),
           },
         );
       },
@@ -480,7 +484,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Future<void> _recordDiaper() async {
-    final entry = await _showDiaperForm();
+    final entry = await showDiaperEntryForm(context);
     if (entry == null) return;
     setState(() {
       _diaperEntries.add(entry);
@@ -495,7 +499,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Future<void> _editDiaper(DiaperEntry entry) async {
-    final updated = await _showDiaperForm(existingEntry: entry);
+    final updated = await showDiaperEntryForm(context, existingEntry: entry);
     if (updated == null) return;
     setState(() {
       entry.time = updated.time;
@@ -553,7 +557,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   /// Adds a sleep session via the form (start/end pickers) rather than the
   /// live timer, for logging periods after the fact.
   Future<void> _addSleepManually() async {
-    final entry = await _showSleepForm();
+    final entry = await showSleepEntryForm(context);
     if (entry == null) return;
     setState(() {
       _sleepEntries.add(entry);
@@ -578,7 +582,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Future<void> _editSleep(SleepEntry entry) async {
-    final updated = await _showSleepForm(existingEntry: entry);
+    final updated = await showSleepEntryForm(context, existingEntry: entry);
     if (updated == null) return;
     setState(() {
       entry.start = updated.start;
@@ -919,191 +923,6 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       return DateFormat.yMMMd().format(range.start);
     }
     return '${DateFormat('MMM d').format(range.start)} – ${DateFormat.yMMMd().format(range.end)}';
-  }
-
-  Future<SleepEntry?> _showSleepForm({SleepEntry? existingEntry}) async {
-    final notesController = TextEditingController(text: existingEntry?.notes ?? '');
-    DateTime start = existingEntry?.start ?? DateTime.now();
-    DateTime? end = existingEntry?.end;
-
-    final result = await showDialog<SleepEntry>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            String? errorText;
-            if (end != null && !end!.isAfter(start)) {
-              errorText = 'End must be after start.';
-            }
-            return AlertDialog(
-              title: Text(existingEntry == null ? 'Add Sleep' : 'Edit Sleep'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.bedtime),
-                      onPressed: () async {
-                        final picked = await pickDateTime(context, start);
-                        if (picked == null) return;
-                        setDialogState(() => start = picked);
-                      },
-                      label: Text('Start: ${DateFormat.yMMMd().add_jm().format(start)}'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.wb_sunny),
-                      onPressed: () async {
-                        final picked = await pickDateTime(context, end ?? start);
-                        if (picked == null) return;
-                        setDialogState(() => end = picked);
-                      },
-                      label: Text(end == null
-                          ? 'End: still sleeping'
-                          : 'End: ${DateFormat.yMMMd().add_jm().format(end!)}'),
-                    ),
-                    if (end != null)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () => setDialogState(() => end = null),
-                          child: const Text('Clear end (mark ongoing)'),
-                        ),
-                      ),
-                    if (errorText != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        errorText,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: notesController,
-                      decoration: const InputDecoration(
-                        labelText: 'Extra notes',
-                        hintText: 'Optional details',
-                      ),
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: errorText != null
-                      ? null
-                      : () {
-                          final entry = SleepEntry(
-                            id: existingEntry?.id ?? DateTime.now().millisecondsSinceEpoch,
-                            start: start,
-                            end: end,
-                            notes: notesController.text.trim(),
-                          );
-                          Navigator.of(context).pop(entry);
-                        },
-                  child: Text(existingEntry == null ? 'Save' : 'Update'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    return result;
-  }
-
-  Future<DiaperEntry?> _showDiaperForm({DiaperEntry? existingEntry}) async {
-    final notesController = TextEditingController(text: existingEntry?.notes ?? '');
-    bool pee = existingEntry?.pee ?? false;
-    bool poo = existingEntry?.poo ?? false;
-    DateTime time = existingEntry?.time ?? DateTime.now();
-
-    final result = await showDialog<DiaperEntry>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(existingEntry == null ? 'Record Diaper Change' : 'Edit Diaper Change'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Pee'),
-                      value: pee,
-                      onChanged: (value) => setDialogState(() => pee = value ?? false),
-                    ),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Poo'),
-                      value: poo,
-                      onChanged: (value) => setDialogState(() => poo = value ?? false),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Leave both unchecked for a dry diaper change.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: notesController,
-                      decoration: const InputDecoration(
-                        labelText: 'Extra notes',
-                        hintText: 'Optional details',
-                      ),
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: () async {
-                        final picked = await pickDateTime(context, time);
-                        if (picked == null) return;
-                        setDialogState(() => time = picked);
-                      },
-                      child: Text('Set date/time: ${DateFormat.yMMMd().add_jm().format(time)}'),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final entry = DiaperEntry(
-                      id: existingEntry?.id ?? DateTime.now().millisecondsSinceEpoch,
-                      time: time,
-                      pee: pee,
-                      poo: poo,
-                      notes: notesController.text.trim(),
-                    );
-                    Navigator.of(context).pop(entry);
-                  },
-                  child: Text(existingEntry == null ? 'Save' : 'Update'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    return result;
   }
 
   Widget _sectionTitle(IconData icon, String text) {
