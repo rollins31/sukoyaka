@@ -65,6 +65,19 @@ class GrowthChart extends StatelessWidget {
     return from == 'cm' ? value * _cmToIn : value / _cmToIn;
   }
 
+  static double _leftAxisWidth(BuildContext context, List<_Point> points, String unit) {
+    final values = points.map((p) => p.value);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: '${values.reduce(math.max).toStringAsFixed(1)} $unit',
+        style: const TextStyle(fontSize: 10),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    return painter.width + 8;
+  }
+
   @override
   Widget build(BuildContext context) {
     final points = _points;
@@ -120,7 +133,7 @@ class GrowthChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 44,
+              reservedSize: _leftAxisWidth(context, points, unit),
               getTitlesWidget: (value, meta) => Text(
                 '${value.toStringAsFixed(1)} $unit',
                 style: const TextStyle(fontSize: 10),

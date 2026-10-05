@@ -17,11 +17,11 @@ Future<void> syncHomeWidget(List<FeedingEntry> entries, Duration reminderInterva
       final nextDue = lastTime.add(reminderInterval);
       await HomeWidget.saveWidgetData<String>(
         'last_fed_text',
-        'Last fed: ${DateFormat.jm().format(lastTime)}',
+        'Fed ${DateFormat.jm().format(lastTime)}',
       );
       await HomeWidget.saveWidgetData<String>(
         'next_due_text',
-        'Next feed: ${DateFormat.jm().format(nextDue)}',
+        'Next ${DateFormat.jm().format(nextDue)}',
       );
     }
     await HomeWidget.updateWidget(androidName: 'FeedingWidgetProvider');

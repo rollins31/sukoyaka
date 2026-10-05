@@ -40,14 +40,14 @@ class WeeklySleepChart extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildLegend(context),
+        const SizedBox(height: 8),
         _buildAxis(context),
         const SizedBox(height: 6),
         for (final day in days) ...[
           _buildDayRow(context, day, today),
           const SizedBox(height: 6),
         ],
-        const SizedBox(height: 4),
-        _buildLegend(context),
       ],
     );
   }

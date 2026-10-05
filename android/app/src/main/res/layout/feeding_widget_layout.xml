@@ -25,17 +25,21 @@
 
             <TextView
                 android:id="@+id/last_fed_text"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="No feedings logged yet"
                 android:textColor="#4A4038"
                 android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/next_due_text"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text=""
                 android:textColor="#4A55C9"
                 android:textSize="14sp"
