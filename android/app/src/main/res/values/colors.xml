@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#4A55C9</color>
+
+    <!-- Home-screen widget: light theme (default) -->
+    <color name="widget_card_background">#FDF6F0</color>
+    <color name="widget_text_primary">#4A4038</color>
+    <color name="widget_text_accent">#4A55C9</color>
+    <color name="widget_button_background">#7EC8BC</color>
+    <color name="widget_button_icon">#1B3B34</color>
 </resources>

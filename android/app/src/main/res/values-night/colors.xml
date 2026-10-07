@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home-screen widget: dark theme overrides. Button background/icon
+         colors are intentionally not overridden here: the teal/navy pair
+         reads fine against either card color. -->
+    <color name="widget_card_background">#242236</color>
+    <color name="widget_text_primary">#E8E4F7</color>
+    <color name="widget_text_accent">#ABA3F5</color>
+</resources>

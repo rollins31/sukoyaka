@@ -30,7 +30,7 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="No feedings logged yet"
-                android:textColor="#4A4038"
+                android:textColor="@color/widget_text_primary"
                 android:textSize="14sp" />
 
             <TextView
@@ -41,7 +41,7 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text=""
-                android:textColor="#4A55C9"
+                android:textColor="@color/widget_text_accent"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
@@ -84,7 +84,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="3dp"
                 android:text="Feed"
-                android:textColor="#4A4038"
+                android:textColor="@color/widget_text_primary"
                 android:textSize="9sp"
                 android:textStyle="bold" />
 
@@ -112,7 +112,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="3dp"
                 android:text="Sleep"
-                android:textColor="#4A4038"
+                android:textColor="@color/widget_text_primary"
                 android:textSize="9sp"
                 android:textStyle="bold" />
 
@@ -140,7 +140,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="3dp"
                 android:text="Diaper"
-                android:textColor="#4A4038"
+                android:textColor="@color/widget_text_primary"
                 android:textSize="9sp"
                 android:textStyle="bold" />
 
