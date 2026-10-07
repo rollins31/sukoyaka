@@ -307,6 +307,11 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   Future<void> _loadData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      // getInstance() memoizes its cache for the isolate's lifetime, so
+      // without this, data written by the widget's separate engine (while
+      // this app sat backgrounded, never killed) would stay invisible until
+      // the process actually restarted.
+      await prefs.reload();
       final jsonString = prefs.getString(_entriesKey);
       final rawEntries = jsonString == null ? [] : jsonDecode(jsonString) as List<dynamic>;
       final loadedEntries = rawEntries
