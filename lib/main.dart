@@ -15,6 +15,7 @@ import 'feeding_entry.dart';
 import 'feeding_entry_form.dart';
 import 'feeding_filters.dart';
 import 'growth_entry.dart';
+import 'growth_entry_form.dart';
 import 'growth_screen.dart';
 import 'home_widget_sync.dart';
 import 'notification_service.dart';
@@ -30,6 +31,7 @@ const _sleepEntriesKey = 'sleep_entries';
 const _diaperEntriesKey = 'diaper_entries';
 const _growthEntriesKey = 'growth_entries';
 const _intervalKey = 'reminder_interval_minutes';
+const _feedReminderEnabledKey = 'feed_reminder_enabled';
 const _diaperReminderEnabledKey = 'diaper_reminder_enabled';
 const _diaperIntervalKey = 'diaper_reminder_interval_minutes';
 const _themeModeKey = 'theme_mode';
@@ -215,6 +217,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   /// Read-only cache for the Home card's "latest measurement" summary —
   /// growth's actual data lives entirely in GrowthScreen (see growth_screen.dart).
   final List<GrowthEntry> _growthEntries = [];
+  bool _feedReminderEnabled = true;
   Duration _reminderInterval = const Duration(hours: 3);
   bool _diaperReminderEnabled = false;
   Duration _diaperReminderInterval = const Duration(hours: 3);
@@ -335,6 +338,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           .toList();
       loadedDiaperEntries.sort((a, b) => a.time.compareTo(b.time));
 
+      final feedReminderEnabled = prefs.getBool(_feedReminderEnabledKey) ?? true;
       final intervalMinutes = prefs.getInt(_intervalKey) ?? 180;
       final diaperReminderEnabled = prefs.getBool(_diaperReminderEnabledKey) ?? false;
       final diaperIntervalMinutes = prefs.getInt(_diaperIntervalKey) ?? 180;
@@ -348,6 +352,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         _diaperEntries
           ..clear()
           ..addAll(loadedDiaperEntries);
+        _feedReminderEnabled = feedReminderEnabled;
         _reminderInterval = Duration(minutes: intervalMinutes);
         _diaperReminderEnabled = diaperReminderEnabled;
         _diaperReminderInterval = Duration(minutes: diaperIntervalMinutes);
@@ -355,10 +360,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       });
       _updateSleepTicker();
 
-      if (_entries.isNotEmpty) {
-        final nextReminder = _entries.last.time.add(_reminderInterval);
-        await NotificationService.scheduleFeedReminder(nextReminder);
-      }
+      await _rescheduleFeedReminder();
       await _rescheduleDiaperReminder();
       await _updateHomeWidget();
     } catch (e) {
@@ -375,8 +377,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await prefs.setString(_entriesKey, encoded);
   }
 
-  Future<void> _saveInterval() async {
+  Future<void> _saveFeedReminderSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_feedReminderEnabledKey, _feedReminderEnabled);
     await prefs.setInt(_intervalKey, _reminderInterval.inMinutes);
   }
 
@@ -384,6 +387,19 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_diaperReminderEnabledKey, _diaperReminderEnabled);
     await prefs.setInt(_diaperIntervalKey, _diaperReminderInterval.inMinutes);
+  }
+
+  /// Cancels any pending feed reminder, then reschedules it from the last
+  /// feeding's time — but only if the user has turned the reminder on.
+  /// Safe to call unconditionally after any feedings or
+  /// feed-reminder-settings change.
+  Future<void> _rescheduleFeedReminder() async {
+    await NotificationService.cancelReminder();
+    if (_feedReminderEnabled && _entries.isNotEmpty) {
+      await NotificationService.scheduleFeedReminder(
+        _entries.last.time.add(_reminderInterval),
+      );
+    }
   }
 
   /// Cancels any pending diaper reminder, then reschedules it from the last
@@ -399,7 +415,8 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _updateHomeWidget() => syncHomeWidget(_entries, _reminderInterval);
+  Future<void> _updateHomeWidget() =>
+      syncHomeWidget(_entries, _reminderInterval, reminderEnabled: _feedReminderEnabled);
 
   Future<void> _openSettings() async {
     await Navigator.of(context).push(
@@ -408,6 +425,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           feedings: List.of(_entries),
           sleepEntries: List.of(_sleepEntries),
           diaperEntries: List.of(_diaperEntries),
+          feedReminderEnabled: _feedReminderEnabled,
           reminderInterval: _reminderInterval,
           diaperReminderEnabled: _diaperReminderEnabled,
           diaperReminderInterval: _diaperReminderInterval,
@@ -418,6 +436,22 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _editGrowth(GrowthEntry entry) async {
+    final updated = await showGrowthEntryForm(context, existingEntry: entry);
+    if (updated == null) return;
+    setState(() {
+      entry
+        ..time = updated.time
+        ..weight = updated.weight
+        ..weightUnit = updated.weightUnit
+        ..height = updated.height
+        ..heightUnit = updated.heightUnit
+        ..notes = updated.notes;
+      _growthEntries.sort((a, b) => a.time.compareTo(b.time));
+    });
+    await _saveGrowthEntries();
+  }
+
   Future<void> _openGrowthScreen() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const GrowthScreen()),
@@ -426,7 +460,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   /// Replaces all locally stored data with the contents of [backup],
-  /// persists it, and reschedules the feed reminder to match.
+  /// persists it, and reschedules reminders to match.
   Future<void> _restoreFromBackup(AppBackup backup) async {
     setState(() {
       _entries
@@ -445,6 +479,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         ..clear()
         ..addAll(backup.growthEntries)
         ..sort((a, b) => a.time.compareTo(b.time));
+      _feedReminderEnabled = backup.feedReminderEnabled;
       _reminderInterval = Duration(minutes: backup.reminderIntervalMinutes);
       _diaperReminderEnabled = backup.diaperReminderEnabled;
       _diaperReminderInterval = Duration(minutes: backup.diaperReminderIntervalMinutes);
@@ -454,12 +489,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await _saveSleepEntries();
     await _saveDiaperEntries();
     await _saveGrowthEntries();
-    await _saveInterval();
+    await _saveFeedReminderSettings();
     await _saveDiaperReminderSettings();
-    await NotificationService.cancelReminder();
-    if (_entries.isNotEmpty) {
-      await NotificationService.scheduleFeedReminder(_entries.last.time.add(_reminderInterval));
-    }
+    await _rescheduleFeedReminder();
     await _rescheduleDiaperReminder();
     await _updateHomeWidget();
     if (!mounted) return;
@@ -480,8 +512,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await prefs.setString(_diaperEntriesKey, encoded);
   }
 
-  /// Writes the growth-entries prefs key directly — used only during backup
-  /// restore. Day-to-day, GrowthScreen owns this key entirely itself.
+  /// Writes the growth-entries prefs key directly — used during backup
+  /// restore and when editing the latest measurement from the Home card.
+  /// Otherwise GrowthScreen owns this key itself.
   Future<void> _saveGrowthEntries() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(_growthEntries.map((e) => e.toJson()).toList());
@@ -616,13 +649,13 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       _entries.sort((a, b) => a.time.compareTo(b.time));
     });
     await _saveEntries();
-    final nextReminder = entry.time.add(_reminderInterval);
-    await NotificationService.cancelReminder();
-    await NotificationService.scheduleFeedReminder(nextReminder);
+    await _rescheduleFeedReminder();
     await _updateHomeWidget();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Feeding time recorded and reminder set.')),
+      SnackBar(
+        content: Text(_feedReminderEnabled ? 'Feeding time recorded and reminder set.' : 'Feeding time recorded'),
+      ),
     );
   }
 
@@ -630,12 +663,17 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     setState(() {
       _reminderInterval = interval;
     });
-    await _saveInterval();
-    if (_entries.isNotEmpty) {
-      final lastTime = _entries.last.time;
-      await NotificationService.cancelReminder();
-      await NotificationService.scheduleFeedReminder(lastTime.add(_reminderInterval));
-    }
+    await _saveFeedReminderSettings();
+    await _rescheduleFeedReminder();
+    await _updateHomeWidget();
+  }
+
+  Future<void> _setFeedReminderEnabled(bool enabled) async {
+    setState(() {
+      _feedReminderEnabled = enabled;
+    });
+    await _saveFeedReminderSettings();
+    await _rescheduleFeedReminder();
     await _updateHomeWidget();
   }
 
@@ -883,11 +921,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       _entries.sort((a, b) => a.time.compareTo(b.time));
     });
     await _saveEntries();
-    if (_entries.isNotEmpty) {
-      final lastTime = _entries.last.time;
-      await NotificationService.cancelReminder();
-      await NotificationService.scheduleFeedReminder(lastTime.add(_reminderInterval));
-    }
+    await _rescheduleFeedReminder();
     await _updateHomeWidget();
   }
 
@@ -896,13 +930,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       _entries.removeWhere((e) => e.id == entry.id);
     });
     await _saveEntries();
-    if (_entries.isNotEmpty) {
-      final lastTime = _entries.last.time;
-      await NotificationService.cancelReminder();
-      await NotificationService.scheduleFeedReminder(lastTime.add(_reminderInterval));
-    } else {
-      await NotificationService.cancelReminder();
-    }
+    await _rescheduleFeedReminder();
     await _updateHomeWidget();
   }
 
@@ -1026,10 +1054,10 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _sectionTitle(Icons.local_drink, 'Last feeding'),
+                  _sectionTitle(Icons.local_drink, 'Feeding'),
                   const SizedBox(height: 12),
                   Text(
-                    lastFeed == null ? 'No feeding recorded yet' : _formatFeedTime(lastFeed),
+                    lastFeed == null ? 'No feeding recorded yet' : 'Last feeding: ${_formatFeedTime(lastFeed)}',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   if (lastEntry != null) ...[
@@ -1061,21 +1089,30 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                     ),
                   ],
                   const SizedBox(height: 20),
-                  _sectionTitle(Icons.schedule, 'Reminder interval'),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(child: Text(formatInterval(_reminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
-                      TextButton(onPressed: _pickReminderInterval, child: const Text('Change')),
-                    ],
+                  _sectionTitle(Icons.schedule, 'Feeding reminder'),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Remind me'),
+                    value: _feedReminderEnabled,
+                    onChanged: _setFeedReminderEnabled,
                   ),
-                  const SizedBox(height: 20),
-                  _sectionTitle(Icons.notifications, 'Next reminder'),
-                  const SizedBox(height: 12),
-                  Text(
-                    nextReminder == null ? 'Record a feeding to set the next reminder' : _formatFeedTime(nextReminder),
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
+                  if (_feedReminderEnabled) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: Text(formatInterval(_reminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
+                        TextButton(onPressed: _pickReminderInterval, child: const Text('Change')),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _sectionTitle(Icons.notifications, 'Next reminder'),
+                    const SizedBox(height: 12),
+                    Text(
+                      nextReminder == null ? 'Record a feeding to set the next reminder' : _formatFeedTime(nextReminder),
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: _recordFeed,
@@ -1118,18 +1155,34 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
             _sectionTitle(Icons.bedtime, 'Sleep'),
             const SizedBox(height: 12),
             if (active != null) ...[
-              Text(
-                'Sleeping since ${_formatFeedTime(active.start)}',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                formatDuration(DateTime.now().difference(active.start)),
-                style: GoogleFonts.baloo2(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sleeping since ${_formatFeedTime(active.start)}',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          formatDuration(DateTime.now().difference(active.start)),
+                          style: GoogleFonts.baloo2(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Edit current sleep',
+                    onPressed: () => _editSleep(active),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
@@ -1139,12 +1192,24 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                 style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
               ),
             ] else ...[
-              Text(
-                lastFinished == null
-                    ? 'No sleep recorded yet'
-                    : 'Last slept ${formatDuration(lastFinished.duration!)} '
-                        '(ended ${_formatFeedTime(lastFinished.end!)})',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      lastFinished == null
+                          ? 'No sleep recorded yet'
+                          : 'Last slept ${formatDuration(lastFinished.duration!)} '
+                              '(ended ${_formatFeedTime(lastFinished.end!)})',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                  if (lastFinished != null)
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      tooltip: 'Edit last sleep',
+                      onPressed: () => _editSleep(lastFinished),
+                    ),
+                ],
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
@@ -1355,16 +1420,37 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           children: [
             _sectionTitle(Icons.baby_changing_station, 'Diaper change'),
             const SizedBox(height: 12),
-            Text(
-              lastDiaper == null
-                  ? 'No diaper changes recorded yet'
-                  : '${lastDiaper.contentsLabel} • ${_formatFeedTime(lastDiaper.time)}',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        lastDiaper == null
+                            ? 'No diaper changes recorded yet'
+                            : 'Last change: ${_formatFeedTime(lastDiaper.time)}',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      if (lastDiaper != null) ...[
+                        const SizedBox(height: 12),
+                        Text('Contents: ${lastDiaper.contentsLabel}', style: Theme.of(context).textTheme.bodyLarge),
+                      ],
+                      if (lastDiaper != null && lastDiaper.notes.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(lastDiaper.notes, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                      ],
+                    ],
+                  ),
+                ),
+                if (lastDiaper != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Edit last diaper change',
+                    onPressed: () => _editDiaper(lastDiaper),
+                  ),
+              ],
             ),
-            if (lastDiaper != null && lastDiaper.notes.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(lastDiaper.notes, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            ],
             const SizedBox(height: 20),
             _sectionTitle(Icons.schedule, 'Diaper reminder'),
             const SizedBox(height: 8),
@@ -1409,12 +1495,6 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
 
   Widget _buildGrowthCard() {
     final last = _growthEntries.isEmpty ? null : _growthEntries.last;
-    final summary = last == null
-        ? 'No measurements recorded yet'
-        : '${[
-            if (last.weight != null) 'Weight: ${last.weight} ${last.weightUnit}',
-            if (last.height != null) 'Height: ${last.height} ${last.heightUnit}',
-          ].join(' • ')} • ${_formatFeedTime(last.time)}';
 
     return Card(
       child: Padding(
@@ -1424,9 +1504,33 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           children: [
             _sectionTitle(Icons.monitor_weight, 'Growth'),
             const SizedBox(height: 12),
-            Text(
-              summary,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        last == null ? 'No measurements recorded yet' : 'Last measured: ${_formatFeedTime(last.time)}',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      if (last != null) ...[
+                        const SizedBox(height: 12),
+                        if (last.weight != null)
+                          Text('Weight: ${last.weight} ${last.weightUnit}', style: Theme.of(context).textTheme.bodyLarge),
+                        if (last.height != null)
+                          Text('Height: ${last.height} ${last.heightUnit}', style: Theme.of(context).textTheme.bodyLarge),
+                      ],
+                    ],
+                  ),
+                ),
+                if (last != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Edit last measurement',
+                    onPressed: () => _editGrowth(last),
+                  ),
+              ],
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(

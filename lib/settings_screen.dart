@@ -22,6 +22,7 @@ class SettingsScreen extends StatefulWidget {
     required this.sleepEntries,
     required this.diaperEntries,
     required this.growthEntries,
+    required this.feedReminderEnabled,
     required this.reminderInterval,
     required this.diaperReminderEnabled,
     required this.diaperReminderInterval,
@@ -32,6 +33,7 @@ class SettingsScreen extends StatefulWidget {
   final List<SleepEntry> sleepEntries;
   final List<DiaperEntry> diaperEntries;
   final List<GrowthEntry> growthEntries;
+  final bool feedReminderEnabled;
   final Duration reminderInterval;
   final bool diaperReminderEnabled;
   final Duration diaperReminderInterval;
@@ -60,6 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         sleepEntries: widget.sleepEntries,
         diaperEntries: widget.diaperEntries,
         growthEntries: widget.growthEntries,
+        feedReminderEnabled: widget.feedReminderEnabled,
         reminderIntervalMinutes: widget.reminderInterval.inMinutes,
         diaperReminderEnabled: widget.diaperReminderEnabled,
         diaperReminderIntervalMinutes: widget.diaperReminderInterval.inMinutes,

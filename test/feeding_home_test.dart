@@ -66,6 +66,19 @@ void main() {
     expect(prefs.getInt('reminder_interval_minutes'), 300);
   });
 
+  testWidgets('turning off the feeding reminder hides its interval and persists', (tester) async {
+    await _pumpHome(tester);
+
+    // The diaper card has its own "Remind me" switch further down the page.
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Remind me').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 hours'), findsNothing);
+    expect(find.text('Change'), findsNothing);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('feed_reminder_enabled'), isFalse);
+  });
+
   testWidgets('switching to the Feedings tab shows its own empty state', (tester) async {
     await _pumpHome(tester);
 

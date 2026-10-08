@@ -15,6 +15,7 @@ import 'sleep_entry_form.dart';
 
 const _entriesKey = 'feeding_entries';
 const _intervalKey = 'reminder_interval_minutes';
+const _feedReminderEnabledKey = 'feed_reminder_enabled';
 const _sleepEntriesKey = 'sleep_entries';
 const _diaperEntriesKey = 'diaper_entries';
 const _diaperReminderEnabledKey = 'diaper_reminder_enabled';
@@ -76,13 +77,16 @@ Future<void> _persistQuickLogFeeding(FeedingEntry entry) async {
     ..sort((a, b) => a.time.compareTo(b.time));
   await prefs.setString(_entriesKey, jsonEncode(entries.map((e) => e.toJson()).toList()));
 
+  final feedReminderEnabled = prefs.getBool(_feedReminderEnabledKey) ?? true;
   final reminderInterval = Duration(minutes: prefs.getInt(_intervalKey) ?? 180);
 
   await NotificationService.initialize();
   await NotificationService.cancelReminder();
-  await NotificationService.scheduleFeedReminder(entry.time.add(reminderInterval));
+  if (feedReminderEnabled) {
+    await NotificationService.scheduleFeedReminder(entries.last.time.add(reminderInterval));
+  }
 
-  await syncHomeWidget(entries, reminderInterval);
+  await syncHomeWidget(entries, reminderInterval, reminderEnabled: feedReminderEnabled);
 }
 
 Future<void> _persistQuickLogSleep(SleepEntry entry) async {

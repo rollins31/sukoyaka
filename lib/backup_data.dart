@@ -15,6 +15,7 @@ class AppBackup {
     required this.sleepEntries,
     required this.diaperEntries,
     required this.growthEntries,
+    required this.feedReminderEnabled,
     required this.reminderIntervalMinutes,
     required this.diaperReminderEnabled,
     required this.diaperReminderIntervalMinutes,
@@ -25,6 +26,7 @@ class AppBackup {
   final List<SleepEntry> sleepEntries;
   final List<DiaperEntry> diaperEntries;
   final List<GrowthEntry> growthEntries;
+  final bool feedReminderEnabled;
   final int reminderIntervalMinutes;
   final bool diaperReminderEnabled;
   final int diaperReminderIntervalMinutes;
@@ -44,6 +46,7 @@ class AppBackup {
       growthEntries: (json['growthEntries'] as List<dynamic>? ?? [])
           .map((raw) => GrowthEntry.fromJson(raw as Map<String, dynamic>))
           .toList(),
+      feedReminderEnabled: json['feedReminderEnabled'] as bool? ?? true,
       reminderIntervalMinutes: json['reminderIntervalMinutes'] as int? ?? 180,
       diaperReminderEnabled: json['diaperReminderEnabled'] as bool? ?? false,
       diaperReminderIntervalMinutes: json['diaperReminderIntervalMinutes'] as int? ?? 180,
@@ -58,6 +61,7 @@ class AppBackup {
       'sleepEntries': sleepEntries.map((e) => e.toJson()).toList(),
       'diaperEntries': diaperEntries.map((e) => e.toJson()).toList(),
       'growthEntries': growthEntries.map((e) => e.toJson()).toList(),
+      'feedReminderEnabled': feedReminderEnabled,
       'reminderIntervalMinutes': reminderIntervalMinutes,
       'diaperReminderEnabled': diaperReminderEnabled,
       'diaperReminderIntervalMinutes': diaperReminderIntervalMinutes,
