@@ -1,32 +1,33 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'empty_state.dart';
 import 'feeding_filters.dart';
 import 'growth_chart.dart';
 import 'growth_entry.dart';
-import 'growth_entry_form.dart';
 
-const _growthEntriesKey = 'growth_entries';
+/// The Growth tab. Like the Sleep and Diapers tabs, the entries themselves
+/// live in `_FeedingHomeState` (which also feeds the Home card), so this page
+/// only renders them and reports edits/deletes back up. The "Add
+/// Measurement" button is the main scaffold's FAB.
+class GrowthPage extends StatefulWidget {
+  const GrowthPage({
+    super.key,
+    required this.entries,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
-/// Fully self-contained: growth has no reminders or home-widget sync to
-/// coordinate with the rest of the app, so unlike feeding/sleep/diaper this
-/// screen owns its own SharedPreferences-backed data rather than being fed
-/// state from `_FeedingHomeState`.
-class GrowthScreen extends StatefulWidget {
-  const GrowthScreen({super.key});
+  final List<GrowthEntry> entries;
+  final void Function(GrowthEntry entry) onEdit;
+  final void Function(GrowthEntry entry) onDelete;
 
   @override
-  State<GrowthScreen> createState() => _GrowthScreenState();
+  State<GrowthPage> createState() => _GrowthPageState();
 }
 
-class _GrowthScreenState extends State<GrowthScreen> {
-  final List<GrowthEntry> _entries = [];
-  bool _loading = true;
+class _GrowthPageState extends State<GrowthPage> {
   GrowthMetric _metric = GrowthMetric.weight;
   // Unlike Feedings/Diapers, growth measurements are logged rarely (weekly
   // or monthly, not several times a day), so a "recent window" default would
@@ -35,70 +36,8 @@ class _GrowthScreenState extends State<GrowthScreen> {
 
   List<GrowthEntry> get _filteredEntries {
     final range = _filterRange;
-    if (range == null) return List.of(_entries);
-    return filterEntriesForRange(_entries, range);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_growthEntriesKey);
-    final rawEntries = jsonString == null ? [] : jsonDecode(jsonString) as List<dynamic>;
-    final loadedEntries = rawEntries
-        .map((raw) => GrowthEntry.fromJson(raw as Map<String, dynamic>))
-        .toList()
-      ..sort((a, b) => a.time.compareTo(b.time));
-    if (!mounted) return;
-    setState(() {
-      _entries
-        ..clear()
-        ..addAll(loadedEntries);
-      _loading = false;
-    });
-  }
-
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(_entries.map((e) => e.toJson()).toList());
-    await prefs.setString(_growthEntriesKey, encoded);
-  }
-
-  Future<void> _add() async {
-    final entry = await showGrowthEntryForm(context);
-    if (entry == null) return;
-    setState(() {
-      _entries.add(entry);
-      _entries.sort((a, b) => a.time.compareTo(b.time));
-    });
-    await _save();
-  }
-
-  Future<void> _edit(GrowthEntry entry) async {
-    final updated = await showGrowthEntryForm(context, existingEntry: entry);
-    if (updated == null) return;
-    setState(() {
-      entry
-        ..time = updated.time
-        ..weight = updated.weight
-        ..weightUnit = updated.weightUnit
-        ..height = updated.height
-        ..heightUnit = updated.heightUnit
-        ..notes = updated.notes;
-      _entries.sort((a, b) => a.time.compareTo(b.time));
-    });
-    await _save();
-  }
-
-  Future<void> _delete(GrowthEntry entry) async {
-    setState(() {
-      _entries.removeWhere((e) => e.id == entry.id);
-    });
-    await _save();
+    if (range == null) return List.of(widget.entries);
+    return filterEntriesForRange(widget.entries, range);
   }
 
   String _formatMeasurement(GrowthEntry entry) {
@@ -112,60 +51,50 @@ class _GrowthScreenState extends State<GrowthScreen> {
   @override
   Widget build(BuildContext context) {
     final entries = _filteredEntries;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Growth')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                        child: SegmentedButton<GrowthMetric>(
-                          segments: const [
-                            ButtonSegment(value: GrowthMetric.weight, label: Text('Weight')),
-                            ButtonSegment(value: GrowthMetric.height, label: Text('Height')),
-                          ],
-                          selected: {_metric},
-                          onSelectionChanged: (selection) => setState(() => _metric = selection.first),
-                        ),
-                      ),
-                      _buildFilterBar(),
-                      if (entries.isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                          child: SizedBox(
-                            height: 220,
-                            child: GrowthChart(entries: entries, metric: _metric),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Divider(height: 1),
-                      ],
-                    ],
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: SegmentedButton<GrowthMetric>(
+                  segments: const [
+                    ButtonSegment(value: GrowthMetric.weight, label: Text('Weight')),
+                    ButtonSegment(value: GrowthMetric.height, label: Text('Height')),
+                  ],
+                  selected: {_metric},
+                  onSelectionChanged: (selection) => setState(() => _metric = selection.first),
+                ),
+              ),
+              _buildFilterBar(),
+              if (entries.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  child: SizedBox(
+                    height: 220,
+                    child: GrowthChart(entries: entries, metric: _metric),
                   ),
                 ),
-                if (entries.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      icon: _filterRange == null ? Icons.monitor_weight : Icons.search,
-                      message: _filterRange == null
-                          ? 'No measurements yet!\nTap Add Measurement to record one.'
-                          : 'No measurements found for ${_formatFilterRange(_filterRange!)}.',
-                    ),
-                  )
-                else
-                  _buildGroupedSliver(entries),
+                const SizedBox(height: 8),
+                const Divider(height: 1),
               ],
+            ],
+          ),
+        ),
+        if (entries.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: EmptyState(
+              icon: _filterRange == null ? Icons.monitor_weight : Icons.search,
+              message: _filterRange == null
+                  ? 'No measurements yet!\nTap Add Measurement to record one.'
+                  : 'No measurements found for ${_formatFilterRange(_filterRange!)}.',
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _add,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Measurement'),
-      ),
+          )
+        else
+          _buildGroupedSliver(entries),
+      ],
     );
   }
 
@@ -337,12 +266,12 @@ class _GrowthScreenState extends State<GrowthScreen> {
           children: [
             IconButton(
               icon: const Icon(Icons.edit),
-              onPressed: () => _edit(entry),
+              onPressed: () => widget.onEdit(entry),
               tooltip: 'Edit',
             ),
             IconButton(
               icon: const Icon(Icons.delete),
-              onPressed: () => _delete(entry),
+              onPressed: () => widget.onDelete(entry),
               tooltip: 'Delete',
             ),
           ],

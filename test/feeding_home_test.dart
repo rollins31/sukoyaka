@@ -79,6 +79,49 @@ void main() {
     expect(prefs.getBool('feed_reminder_enabled'), isFalse);
   });
 
+  // "Growth" alone also matches the Home card's heading.
+  final growthTab = find.descendant(of: find.byType(NavigationBar), matching: find.text('Growth'));
+
+  testWidgets('the Growth tab shows its empty state and Add Measurement button', (tester) async {
+    await _pumpHome(tester);
+
+    await tester.tap(growthTab);
+    await tester.pumpAndSettle();
+
+    expect(find.text('No measurements yet!\nTap Add Measurement to record one.'), findsOneWidget);
+    expect(find.widgetWithText(FloatingActionButton, 'Add Measurement'), findsOneWidget);
+  });
+
+  testWidgets('View growth chart on the Home card switches to the Growth tab', (tester) async {
+    await _pumpHome(tester);
+
+    await tester.scrollUntilVisible(find.text('View growth chart'), 200);
+    await tester.tap(find.text('View growth chart'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FloatingActionButton, 'Add Measurement'), findsOneWidget);
+  });
+
+  testWidgets('deleting a measurement in the Growth tab updates the Home card', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'growth_entries': '[{"id": 1, "time": "2026-10-01T09:00:00.000", "weight": 6.5, "weightUnit": "kg"}]',
+    });
+    await _pumpHome(tester);
+    await tester.scrollUntilVisible(find.textContaining('Last measured'), 200);
+
+    await tester.tap(growthTab);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byTooltip('Delete'), 200);
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('No measurements recorded yet'), 200);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('growth_entries'), '[]');
+  });
+
   testWidgets('switching to the Feedings tab shows its own empty state', (tester) async {
     await _pumpHome(tester);
 

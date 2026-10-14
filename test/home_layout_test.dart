@@ -56,8 +56,9 @@ void main() {
 
       // "Sleep" alone would also match the bottom-nav tab.
       expect(find.text('Start sleep'), findsNothing);
-      final growthY = tester.getTopLeft(find.text('Growth')).dy;
-      final feedingY = tester.getTopLeft(find.text('Feeding')).dy;
+      // Card-specific buttons, since "Growth" also matches the bottom-nav tab.
+      final growthY = tester.getTopLeft(find.text('View growth chart')).dy;
+      final feedingY = tester.getTopLeft(find.text('Mark feeding now')).dy;
       expect(growthY, lessThan(feedingY));
     });
 

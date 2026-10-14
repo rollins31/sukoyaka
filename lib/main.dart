@@ -217,8 +217,6 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   final List<FeedingEntry> _entries = [];
   final List<SleepEntry> _sleepEntries = [];
   final List<DiaperEntry> _diaperEntries = [];
-  /// Read-only cache for the Home card's "latest measurement" summary —
-  /// growth's actual data lives entirely in GrowthScreen (see growth_screen.dart).
   final List<GrowthEntry> _growthEntries = [];
   bool _feedReminderEnabled = true;
   Duration _reminderInterval = const Duration(hours: 3);
@@ -244,28 +242,6 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     _filterRange = defaultRange;
     _diaperFilterRange = defaultRange;
     _loadData();
-    _loadGrowthEntries();
-  }
-
-  /// Reads just the growth-entries prefs key, for the Home card summary.
-  /// Kept separate from [_loadData] since that method also does
-  /// feed-reminder rescheduling and a home-widget sync that have nothing to
-  /// do with growth and would otherwise re-run pointlessly on every return
-  /// from [GrowthScreen].
-  Future<void> _loadGrowthEntries() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_growthEntriesKey);
-    final rawEntries = jsonString == null ? [] : jsonDecode(jsonString) as List<dynamic>;
-    final loadedEntries = rawEntries
-        .map((raw) => GrowthEntry.fromJson(raw as Map<String, dynamic>))
-        .toList()
-      ..sort((a, b) => a.time.compareTo(b.time));
-    if (!mounted) return;
-    setState(() {
-      _growthEntries
-        ..clear()
-        ..addAll(loadedEntries);
-    });
   }
 
   /// Local midnight of the Monday that begins the week containing [date].
@@ -341,6 +317,14 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           .toList();
       loadedDiaperEntries.sort((a, b) => a.time.compareTo(b.time));
 
+      final growthJsonString = prefs.getString(_growthEntriesKey);
+      final rawGrowthEntries =
+          growthJsonString == null ? [] : jsonDecode(growthJsonString) as List<dynamic>;
+      final loadedGrowthEntries = rawGrowthEntries
+          .map((raw) => GrowthEntry.fromJson(raw as Map<String, dynamic>))
+          .toList();
+      loadedGrowthEntries.sort((a, b) => a.time.compareTo(b.time));
+
       final feedReminderEnabled = prefs.getBool(_feedReminderEnabledKey) ?? true;
       final intervalMinutes = prefs.getInt(_intervalKey) ?? 180;
       final diaperReminderEnabled = prefs.getBool(_diaperReminderEnabledKey) ?? false;
@@ -355,6 +339,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         _diaperEntries
           ..clear()
           ..addAll(loadedDiaperEntries);
+        _growthEntries
+          ..clear()
+          ..addAll(loadedGrowthEntries);
         _feedReminderEnabled = feedReminderEnabled;
         _reminderInterval = Duration(minutes: intervalMinutes);
         _diaperReminderEnabled = diaperReminderEnabled;
@@ -439,6 +426,16 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _addGrowth() async {
+    final entry = await showGrowthEntryForm(context);
+    if (entry == null) return;
+    setState(() {
+      _growthEntries.add(entry);
+      _growthEntries.sort((a, b) => a.time.compareTo(b.time));
+    });
+    await _saveGrowthEntries();
+  }
+
   Future<void> _editGrowth(GrowthEntry entry) async {
     final updated = await showGrowthEntryForm(context, existingEntry: entry);
     if (updated == null) return;
@@ -455,17 +452,17 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await _saveGrowthEntries();
   }
 
+  Future<void> _deleteGrowth(GrowthEntry entry) async {
+    setState(() {
+      _growthEntries.removeWhere((e) => e.id == entry.id);
+    });
+    await _saveGrowthEntries();
+  }
+
   Future<void> _openHomeLayout() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const HomeLayoutScreen()),
     );
-  }
-
-  Future<void> _openGrowthScreen() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const GrowthScreen()),
-    );
-    await _loadGrowthEntries();
   }
 
   /// Replaces all locally stored data with the contents of [backup],
@@ -521,9 +518,6 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await prefs.setString(_diaperEntriesKey, encoded);
   }
 
-  /// Writes the growth-entries prefs key directly — used during backup
-  /// restore and when editing the latest measurement from the Home card.
-  /// Otherwise GrowthScreen owns this key itself.
   Future<void> _saveGrowthEntries() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(_growthEntries.map((e) => e.toJson()).toList());
@@ -1006,6 +1000,11 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                 _buildHistoryPage(),
                 _buildSleepPage(),
                 _buildDiaperPage(),
+                GrowthPage(
+                  entries: _growthEntries,
+                  onEdit: _editGrowth,
+                  onDelete: _deleteGrowth,
+                ),
               ],
             ),
       bottomNavigationBar: NavigationBar(
@@ -1016,6 +1015,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           NavigationDestination(icon: Icon(Icons.history), label: 'Feedings'),
           NavigationDestination(icon: Icon(Icons.bedtime), label: 'Sleep'),
           NavigationDestination(icon: Icon(Icons.baby_changing_station), label: 'Diapers'),
+          NavigationDestination(icon: Icon(Icons.monitor_weight), label: 'Growth'),
         ],
       ),
       floatingActionButton: _buildFab(),
@@ -1044,6 +1044,13 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
         label: const Text('Record Change'),
       );
     }
+    if (_selectedIndex == 4) {
+      return FloatingActionButton.extended(
+        onPressed: _addGrowth,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Measurement'),
+      );
+    }
     return null;
   }
 
@@ -1070,7 +1077,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                 const SizedBox(height: 16),
               ],
               Text(
-                'Peek at the Feedings, Sleep, or Diapers tabs to review, edit, or delete past records.',
+                'Peek at the Feedings, Sleep, Diapers, or Growth tabs to review, edit, or delete past records.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
@@ -1572,7 +1579,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
-              onPressed: _openGrowthScreen,
+              onPressed: () => setState(() => _selectedIndex = 4),
               icon: const Icon(Icons.timeline),
               label: const Text('View growth chart'),
               style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
