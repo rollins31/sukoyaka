@@ -442,6 +442,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
                     ),
                   ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.description_outlined),
+                    title: const Text('Open-source licenses'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showLicensePage(context: context, applicationName: 'Sukoyaka'),
+                  ),
                 ],
               ),
             ),

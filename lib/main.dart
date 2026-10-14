@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,8 +59,24 @@ Future<void> setThemeMode(ThemeMode mode) async {
   await prefs.setString(_themeModeKey, mode.name);
 }
 
+/// The bundled fonts are under the SIL Open Font License, which requires
+/// shipping its text with the fonts; this surfaces it on Flutter's licenses
+/// page alongside the package licenses.
+void _registerFontLicenses() {
+  LicenseRegistry.addLicense(() async* {
+    for (final (font, file) in [('Nunito', 'OFL-Nunito.txt'), ('Baloo 2', 'OFL-Baloo2.txt')]) {
+      final text = await rootBundle.loadString('assets/google_fonts/$file');
+      yield LicenseEntryWithLineBreaks([font], text);
+    }
+  });
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Fonts are bundled under assets/google_fonts/, so never fall back to
+  // fetching them from Google at runtime.
+  GoogleFonts.config.allowRuntimeFetching = false;
+  _registerFontLicenses();
   try {
     await NotificationService.initialize();
   } catch (e) {

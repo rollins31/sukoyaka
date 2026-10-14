@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 /// canonical copy — also published at https://rollins31.github.io/sukoyaka/
 /// (docs/index.html) for the App Store / Play Store listing forms. Keep
 /// both copies in sync when editing.
-const _effectiveDate = 'September 15, 2026';
+const _effectiveDate = 'October 14, 2026';
 
 const _sections = <(String, String)>[
   (
@@ -37,10 +37,8 @@ const _sections = <(String, String)>[
   ),
   (
     'Fonts',
-    'The app loads its typefaces using Google\'s font service, which may make '
-        'a network request to Google\'s servers to fetch font files. This '
-        'request can include your device\'s IP address, as with any network '
-        'request, but does not include any of your baby-tracking data.',
+    'The app\'s typefaces are built into the app itself, so it doesn\'t contact '
+        'Google or any other font service to display text.',
   ),
   (
     'Children\'s privacy',
