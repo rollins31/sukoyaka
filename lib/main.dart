@@ -17,6 +17,8 @@ import 'feeding_filters.dart';
 import 'growth_entry.dart';
 import 'growth_entry_form.dart';
 import 'growth_screen.dart';
+import 'home_layout.dart';
+import 'home_layout_screen.dart';
 import 'home_widget_sync.dart';
 import 'notification_service.dart';
 import 'pdf_export.dart';
@@ -63,6 +65,7 @@ void main() async {
     debugPrint('NotificationService.initialize() error: $e');
   }
   await _loadThemeMode();
+  await loadHomeLayout();
   runApp(const MainApp());
 }
 
@@ -450,6 +453,12 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       _growthEntries.sort((a, b) => a.time.compareTo(b.time));
     });
     await _saveGrowthEntries();
+  }
+
+  Future<void> _openHomeLayout() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const HomeLayoutScreen()),
+    );
   }
 
   Future<void> _openGrowthScreen() async {
@@ -1039,104 +1048,133 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Widget _buildHomePage() {
+    return ValueListenableBuilder<HomeLayout>(
+      valueListenable: homeLayoutNotifier,
+      builder: (context, layout, _) {
+        final cards = layout.visibleCards;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final card in cards) ...[
+                _buildHomeCard(card),
+                const SizedBox(height: 16),
+              ],
+              if (cards.isEmpty) ...[
+                Text(
+                  'All Home cards are hidden.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                'Peek at the Feedings, Sleep, or Diapers tabs to review, edit, or delete past records.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton.icon(
+                  onPressed: _openHomeLayout,
+                  icon: const Icon(Icons.dashboard_customize),
+                  label: const Text('Customize home page'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHomeCard(HomeCard card) => switch (card) {
+        HomeCard.feeding => _buildFeedingSummaryCard(),
+        HomeCard.sleep => _buildSleepCard(),
+        HomeCard.diaper => _buildDiaperCard(),
+        HomeCard.growth => _buildGrowthCard(),
+      };
+
+  Widget _buildFeedingSummaryCard() {
     final lastEntry = _entries.isEmpty ? null : _entries.last;
     final lastFeed = lastEntry?.time;
     final nextReminder = lastFeed?.add(_reminderInterval);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _sectionTitle(Icons.local_drink, 'Feeding'),
+            const SizedBox(height: 12),
+            Text(
+              lastFeed == null ? 'No feeding recorded yet' : 'Last feeding: ${_formatFeedTime(lastFeed)}',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+            if (lastEntry != null) ...[
+              const SizedBox(height: 12),
+              Row(
                 children: [
-                  _sectionTitle(Icons.local_drink, 'Feeding'),
-                  const SizedBox(height: 12),
-                  Text(
-                    lastFeed == null ? 'No feeding recorded yet' : 'Last feeding: ${_formatFeedTime(lastFeed)}',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                  if (lastEntry != null) ...[
-                    const SizedBox(height: 12),
-                    Row(
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Milk type: ${lastEntry.milkType}', style: Theme.of(context).textTheme.bodyLarge),
-                              if (lastEntry.amount != null)
-                                Text('Amount: ${lastEntry.amount} ${lastEntry.amountUnit}', style: Theme.of(context).textTheme.bodyLarge),
-                              if (lastEntry.notes.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text('Notes:', style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 4),
-                                Text(lastEntry.notes, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                              ],
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.edit),
-                          tooltip: 'Edit last feeding',
-                          onPressed: () => _editEntry(lastEntry),
-                        ),
+                        Text('Milk type: ${lastEntry.milkType}', style: Theme.of(context).textTheme.bodyLarge),
+                        if (lastEntry.amount != null)
+                          Text('Amount: ${lastEntry.amount} ${lastEntry.amountUnit}', style: Theme.of(context).textTheme.bodyLarge),
+                        if (lastEntry.notes.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text('Notes:', style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 4),
+                          Text(lastEntry.notes, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                        ],
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 20),
-                  _sectionTitle(Icons.schedule, 'Feeding reminder'),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Remind me'),
-                    value: _feedReminderEnabled,
-                    onChanged: _setFeedReminderEnabled,
                   ),
-                  if (_feedReminderEnabled) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(child: Text(formatInterval(_reminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
-                        TextButton(onPressed: _pickReminderInterval, child: const Text('Change')),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    _sectionTitle(Icons.notifications, 'Next reminder'),
-                    const SizedBox(height: 12),
-                    Text(
-                      nextReminder == null ? 'Record a feeding to set the next reminder' : _formatFeedTime(nextReminder),
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: _recordFeed,
-                    icon: const Icon(Icons.local_cafe),
-                    label: const Text('Mark feeding now'),
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Edit last feeding',
+                    onPressed: () => _editEntry(lastEntry),
                   ),
                 ],
               ),
+            ],
+            const SizedBox(height: 20),
+            _sectionTitle(Icons.schedule, 'Feeding reminder'),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Remind me'),
+              value: _feedReminderEnabled,
+              onChanged: _setFeedReminderEnabled,
             ),
-          ),
-          const SizedBox(height: 16),
-          _buildSleepCard(),
-          const SizedBox(height: 16),
-          _buildDiaperCard(),
-          const SizedBox(height: 16),
-          _buildGrowthCard(),
-          const SizedBox(height: 16),
-          Text(
-            'Peek at the Feedings, Sleep, or Diapers tabs to review, edit, or delete past records.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-        ],
+            if (_feedReminderEnabled) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: Text(formatInterval(_reminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
+                  TextButton(onPressed: _pickReminderInterval, child: const Text('Change')),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _sectionTitle(Icons.notifications, 'Next reminder'),
+              const SizedBox(height: 12),
+              Text(
+                nextReminder == null ? 'Record a feeding to set the next reminder' : _formatFeedTime(nextReminder),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+            ],
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _recordFeed,
+              icon: const Icon(Icons.local_cafe),
+              label: const Text('Mark feeding now'),
+              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
+            ),
+          ],
+        ),
       ),
     );
   }

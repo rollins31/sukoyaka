@@ -7,6 +7,7 @@ import 'backup_service.dart';
 import 'diaper_entry.dart';
 import 'feeding_entry.dart';
 import 'growth_entry.dart';
+import 'home_layout_screen.dart';
 import 'main.dart' show themeModeNotifier, setThemeMode;
 import 'pdf_export.dart';
 import 'privacy_policy_screen.dart';
@@ -233,6 +234,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onSelectionChanged: (selection) => setThemeMode(selection.first),
                       );
                     },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.dashboard_customize, size: 20, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Home page',
+                        style: GoogleFonts.baloo2(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Choose which category cards appear on the Home page and in what order.',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (context) => const HomeLayoutScreen()),
+                    ),
+                    icon: const Icon(Icons.reorder),
+                    label: const Text('Customize home page'),
                   ),
                 ],
               ),
