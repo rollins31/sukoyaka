@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
+import 'date_axis.dart';
 import 'growth_entry.dart';
 
 enum GrowthMetric { weight, height }
@@ -65,18 +65,19 @@ class GrowthChart extends StatelessWidget {
     return from == 'cm' ? value * _cmToIn : value / _cmToIn;
   }
 
-  static double _leftAxisWidth(BuildContext context, List<_Point> points, String unit) {
-    final values = points.map((p) => p.value);
+  static const _axisLabelStyle = TextStyle(fontSize: 10);
+
+  static double _labelWidth(BuildContext context, String text) {
     final painter = TextPainter(
-      text: TextSpan(
-        text: '${values.reduce(math.max).toStringAsFixed(1)} $unit',
-        style: const TextStyle(fontSize: 10),
-      ),
+      text: TextSpan(text: text, style: _axisLabelStyle),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
     )..layout();
-    return painter.width + 8;
+    return painter.width;
   }
+
+  static double _leftAxisWidth(BuildContext context, double maxValue, String unit) =>
+      _labelWidth(context, '${maxValue.toStringAsFixed(1)} $unit') + 8;
 
   @override
   Widget build(BuildContext context) {
@@ -92,60 +93,93 @@ class GrowthChart extends StatelessWidget {
 
     final unit = _displayUnit;
     final spots = [
-      for (final p in points) FlSpot(p.time.millisecondsSinceEpoch.toDouble(), p.value),
+      for (final p in points) FlSpot(dayNumber(p.time), p.value),
     ];
     final colorScheme = Theme.of(context).colorScheme;
 
-    // fl_chart spaces bottom-axis ticks evenly across the x range by default,
-    // which for measurements taken hours apart on the same day produces
-    // several ticks that all format to the same calendar date. Flooring the
-    // spacing at one day keeps every visible tick on a distinct date.
-    const oneDayMs = Duration(days: 1);
-    final xRange = spots.last.x - spots.first.x;
-    final bottomInterval = math.max(oneDayMs.inMilliseconds.toDouble(), xRange / 6);
+    // Headroom above and below the data so the top and bottom points aren't
+    // clipped by the chart border. A flat line (one point, or no change)
+    // gets a fixed margin instead of a zero-height range.
+    final values = points.map((p) => p.value);
+    final lowest = values.reduce(math.min);
+    final highest = values.reduce(math.max);
+    final yPad = highest > lowest ? (highest - lowest) * 0.08 : math.max(highest.abs() * 0.05, 0.5);
+    final maxY = highest + yPad;
+    final leftAxisWidth = _leftAxisWidth(context, maxY, unit);
 
-    return LineChart(
-      LineChartData(
-        lineBarsData: [
-          LineChartBarData(
-            spots: spots,
-            isCurved: false,
-            barWidth: 3,
-            dotData: const FlDotData(show: true),
-            color: colorScheme.primary,
-          ),
-        ],
-        titlesData: FlTitlesData(
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 32,
-              interval: bottomInterval,
-              getTitlesWidget: (value, meta) => Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  DateFormat.Md().format(DateTime.fromMillisecondsSinceEpoch(value.toInt())),
-                  style: const TextStyle(fontSize: 10),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final axis = computeDateAxis(
+          points.first.time,
+          points.last.time,
+          width: constraints.maxWidth - leftAxisWidth,
+          dayLabelWidth: _labelWidth(context, '12/28'),
+          monthLabelWidth: _labelWidth(context, "May '26"),
+        );
+        return LineChart(
+          LineChartData(
+            minX: axis.minX,
+            maxX: axis.maxX,
+            minY: lowest - yPad,
+            maxY: maxY,
+            lineBarsData: [
+              LineChartBarData(
+                spots: spots,
+                isCurved: false,
+                barWidth: 3,
+                dotData: const FlDotData(show: true),
+                color: colorScheme.primary,
+              ),
+            ],
+            titlesData: FlTitlesData(
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 32,
+                  // Visit every midnight and label only the chosen ticks; the
+                  // axis ends are padding, not data, so they get no label.
+                  interval: 1,
+                  minIncluded: false,
+                  maxIncluded: false,
+                  getTitlesWidget: (value, meta) {
+                    if (!axis.isTick(value)) return const SizedBox.shrink();
+                    return SideTitleWidget(
+                      meta: meta,
+                      fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
+                      child: Text(
+                        axis.label(dateForDayNumber(value.round())),
+                        style: _axisLabelStyle,
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: _leftAxisWidth(context, points, unit),
-              getTitlesWidget: (value, meta) => Text(
-                '${value.toStringAsFixed(1)} $unit',
-                style: const TextStyle(fontSize: 10),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: leftAxisWidth,
+                  // The padded min/max would otherwise get their own labels,
+                  // landing on top of the nearest regular one.
+                  minIncluded: false,
+                  maxIncluded: false,
+                  getTitlesWidget: (value, meta) => Text(
+                    '${value.toStringAsFixed(1)} $unit',
+                    style: _axisLabelStyle,
+                  ),
+                ),
               ),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            borderData: FlBorderData(show: true),
+            gridData: FlGridData(
+              show: true,
+              verticalInterval: 1,
+              checkToShowVerticalLine: axis.isTick,
             ),
           ),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        ),
-        borderData: FlBorderData(show: true),
-        gridData: const FlGridData(show: true),
-      ),
+        );
+      },
     );
   }
 }
