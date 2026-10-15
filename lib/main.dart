@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'app_storage_keys.dart';
+import 'app_store.dart';
 import 'app_theme.dart';
 import 'backup_data.dart';
 import 'diaper_entry.dart';
@@ -21,7 +19,6 @@ import 'growth_entry_form.dart';
 import 'growth_screen.dart';
 import 'home_layout.dart';
 import 'home_layout_screen.dart';
-import 'home_widget_sync.dart';
 import 'notification_service.dart';
 import 'pdf_export.dart';
 import 'quick_log_screen.dart';
@@ -81,14 +78,7 @@ class FeedingHome extends StatefulWidget {
 }
 
 class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
-  final List<FeedingEntry> _entries = [];
-  final List<SleepEntry> _sleepEntries = [];
-  final List<DiaperEntry> _diaperEntries = [];
-  final List<GrowthEntry> _growthEntries = [];
-  bool _feedReminderEnabled = true;
-  Duration _reminderInterval = const Duration(hours: 3);
-  bool _diaperReminderEnabled = false;
-  Duration _diaperReminderInterval = const Duration(hours: 3);
+  final _store = AppStore();
   DateTimeRange? _filterRange;
   DateTimeRange? _diaperFilterRange;
   int _selectedIndex = 0;
@@ -100,6 +90,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _store.addListener(_onStoreChanged);
     _sleepWeekStart = _startOfWeek(DateTime.now());
     // Default both histories to a recent window so a long-lived log doesn't
     // dump months of entries on screen until the user asks for more.
@@ -119,6 +110,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _store
+      ..removeListener(_onStoreChanged)
+      ..dispose();
     _sleepTicker?.cancel();
     super.dispose();
   }
@@ -132,18 +126,16 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     }
   }
 
-  /// The sleep session currently in progress, if any.
-  SleepEntry? get _activeSleep {
-    for (final entry in _sleepEntries) {
-      if (entry.isInProgress) return entry;
-    }
-    return null;
+  void _onStoreChanged() {
+    if (!mounted) return;
+    setState(() {});
+    _updateSleepTicker();
   }
 
   /// Keeps a 1-second ticker running only while a sleep session is active, so
   /// the live elapsed duration on the Home tab stays current.
   void _updateSleepTicker() {
-    if (_activeSleep != null) {
+    if (_store.activeSleep != null) {
       _sleepTicker ??= Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) setState(() {});
       });
@@ -155,138 +147,28 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
 
   Future<void> _loadData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      // getInstance() memoizes its cache for the isolate's lifetime, so
-      // without this, data written by the widget's separate engine (while
-      // this app sat backgrounded, never killed) would stay invisible until
-      // the process actually restarted.
-      await prefs.reload();
-      final jsonString = prefs.getString(StorageKeys.feedings);
-      final rawEntries = jsonString == null ? [] : jsonDecode(jsonString) as List<dynamic>;
-      final loadedEntries = rawEntries
-          .map((raw) => FeedingEntry.fromJson(raw as Map<String, dynamic>))
-          .toList();
-      loadedEntries.sort((a, b) => a.time.compareTo(b.time));
-
-      final sleepJsonString = prefs.getString(StorageKeys.sleeps);
-      final rawSleepEntries =
-          sleepJsonString == null ? [] : jsonDecode(sleepJsonString) as List<dynamic>;
-      final loadedSleepEntries = rawSleepEntries
-          .map((raw) => SleepEntry.fromJson(raw as Map<String, dynamic>))
-          .toList();
-      loadedSleepEntries.sort((a, b) => a.start.compareTo(b.start));
-
-      final diaperJsonString = prefs.getString(StorageKeys.diapers);
-      final rawDiaperEntries =
-          diaperJsonString == null ? [] : jsonDecode(diaperJsonString) as List<dynamic>;
-      final loadedDiaperEntries = rawDiaperEntries
-          .map((raw) => DiaperEntry.fromJson(raw as Map<String, dynamic>))
-          .toList();
-      loadedDiaperEntries.sort((a, b) => a.time.compareTo(b.time));
-
-      final growthJsonString = prefs.getString(StorageKeys.growth);
-      final rawGrowthEntries =
-          growthJsonString == null ? [] : jsonDecode(growthJsonString) as List<dynamic>;
-      final loadedGrowthEntries = rawGrowthEntries
-          .map((raw) => GrowthEntry.fromJson(raw as Map<String, dynamic>))
-          .toList();
-      loadedGrowthEntries.sort((a, b) => a.time.compareTo(b.time));
-
-      final feedReminderEnabled = prefs.getBool(StorageKeys.feedReminderEnabled) ?? true;
-      final intervalMinutes = prefs.getInt(StorageKeys.feedReminderInterval) ?? 180;
-      final diaperReminderEnabled = prefs.getBool(StorageKeys.diaperReminderEnabled) ?? false;
-      final diaperIntervalMinutes = prefs.getInt(StorageKeys.diaperReminderInterval) ?? 180;
-      setState(() {
-        _entries
-          ..clear()
-          ..addAll(loadedEntries);
-        _sleepEntries
-          ..clear()
-          ..addAll(loadedSleepEntries);
-        _diaperEntries
-          ..clear()
-          ..addAll(loadedDiaperEntries);
-        _growthEntries
-          ..clear()
-          ..addAll(loadedGrowthEntries);
-        _feedReminderEnabled = feedReminderEnabled;
-        _reminderInterval = Duration(minutes: intervalMinutes);
-        _diaperReminderEnabled = diaperReminderEnabled;
-        _diaperReminderInterval = Duration(minutes: diaperIntervalMinutes);
-        _loading = false;
-      });
-      _updateSleepTicker();
-
-      await _rescheduleFeedReminder();
-      await _rescheduleDiaperReminder();
-      await _updateHomeWidget();
+      await _store.load();
     } catch (e) {
       debugPrint('_loadData() error: $e');
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) setState(() => _loading = false);
+      return;
     }
+    if (mounted) setState(() => _loading = false);
+    await _store.syncReminders();
   }
-
-  Future<void> _saveEntries() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(_entries.map((e) => e.toJson()).toList());
-    await prefs.setString(StorageKeys.feedings, encoded);
-  }
-
-  Future<void> _saveFeedReminderSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(StorageKeys.feedReminderEnabled, _feedReminderEnabled);
-    await prefs.setInt(StorageKeys.feedReminderInterval, _reminderInterval.inMinutes);
-  }
-
-  Future<void> _saveDiaperReminderSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(StorageKeys.diaperReminderEnabled, _diaperReminderEnabled);
-    await prefs.setInt(StorageKeys.diaperReminderInterval, _diaperReminderInterval.inMinutes);
-  }
-
-  /// Cancels any pending feed reminder, then reschedules it from the last
-  /// feeding's time — but only if the user has turned the reminder on.
-  /// Safe to call unconditionally after any feedings or
-  /// feed-reminder-settings change.
-  Future<void> _rescheduleFeedReminder() async {
-    await NotificationService.cancelReminder();
-    if (_feedReminderEnabled && _entries.isNotEmpty) {
-      await NotificationService.scheduleFeedReminder(
-        _entries.last.time.add(_reminderInterval),
-      );
-    }
-  }
-
-  /// Cancels any pending diaper reminder, then reschedules it from the last
-  /// diaper entry's time — but only if the user has turned the reminder on.
-  /// Safe to call unconditionally after any diaper-entries or
-  /// diaper-reminder-settings change.
-  Future<void> _rescheduleDiaperReminder() async {
-    await NotificationService.cancelDiaperReminder();
-    if (_diaperReminderEnabled && _diaperEntries.isNotEmpty) {
-      await NotificationService.scheduleDiaperReminder(
-        _diaperEntries.last.time.add(_diaperReminderInterval),
-      );
-    }
-  }
-
-  Future<void> _updateHomeWidget() =>
-      syncHomeWidget(_entries, _reminderInterval, reminderEnabled: _feedReminderEnabled);
 
   Future<void> _openSettings() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => SettingsScreen(
-          feedings: List.of(_entries),
-          sleepEntries: List.of(_sleepEntries),
-          diaperEntries: List.of(_diaperEntries),
-          feedReminderEnabled: _feedReminderEnabled,
-          reminderInterval: _reminderInterval,
-          diaperReminderEnabled: _diaperReminderEnabled,
-          diaperReminderInterval: _diaperReminderInterval,
-          growthEntries: List.of(_growthEntries),
+          feedings: List.of(_store.feedings),
+          sleepEntries: List.of(_store.sleeps),
+          diaperEntries: List.of(_store.diapers),
+          feedReminderEnabled: _store.feedReminderEnabled,
+          reminderInterval: _store.feedReminderInterval,
+          diaperReminderEnabled: _store.diaperReminderEnabled,
+          diaperReminderInterval: _store.diaperReminderInterval,
+          growthEntries: List.of(_store.growth),
           onRestore: _restoreFromBackup,
         ),
       ),
@@ -296,35 +178,16 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   Future<void> _addGrowth() async {
     final entry = await showGrowthEntryForm(context);
     if (entry == null) return;
-    setState(() {
-      _growthEntries.add(entry);
-      _growthEntries.sort((a, b) => a.time.compareTo(b.time));
-    });
-    await _saveGrowthEntries();
+    await _store.addGrowth(entry);
   }
 
   Future<void> _editGrowth(GrowthEntry entry) async {
     final updated = await showGrowthEntryForm(context, existingEntry: entry);
     if (updated == null) return;
-    setState(() {
-      entry
-        ..time = updated.time
-        ..weight = updated.weight
-        ..weightUnit = updated.weightUnit
-        ..height = updated.height
-        ..heightUnit = updated.heightUnit
-        ..notes = updated.notes;
-      _growthEntries.sort((a, b) => a.time.compareTo(b.time));
-    });
-    await _saveGrowthEntries();
+    await _store.updateGrowth(updated);
   }
 
-  Future<void> _deleteGrowth(GrowthEntry entry) async {
-    setState(() {
-      _growthEntries.removeWhere((e) => e.id == entry.id);
-    });
-    await _saveGrowthEntries();
-  }
+  Future<void> _deleteGrowth(GrowthEntry entry) => _store.deleteGrowth(entry);
 
   Future<void> _openHomeLayout() async {
     await Navigator.of(context).push(
@@ -335,71 +198,17 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   /// Replaces all locally stored data with the contents of [backup],
   /// persists it, and reschedules reminders to match.
   Future<void> _restoreFromBackup(AppBackup backup) async {
-    setState(() {
-      _entries
-        ..clear()
-        ..addAll(backup.feedings)
-        ..sort((a, b) => a.time.compareTo(b.time));
-      _sleepEntries
-        ..clear()
-        ..addAll(backup.sleepEntries)
-        ..sort((a, b) => a.start.compareTo(b.start));
-      _diaperEntries
-        ..clear()
-        ..addAll(backup.diaperEntries)
-        ..sort((a, b) => a.time.compareTo(b.time));
-      _growthEntries
-        ..clear()
-        ..addAll(backup.growthEntries)
-        ..sort((a, b) => a.time.compareTo(b.time));
-      _feedReminderEnabled = backup.feedReminderEnabled;
-      _reminderInterval = Duration(minutes: backup.reminderIntervalMinutes);
-      _diaperReminderEnabled = backup.diaperReminderEnabled;
-      _diaperReminderInterval = Duration(minutes: backup.diaperReminderIntervalMinutes);
-    });
-    _updateSleepTicker();
-    await _saveEntries();
-    await _saveSleepEntries();
-    await _saveDiaperEntries();
-    await _saveGrowthEntries();
-    await _saveFeedReminderSettings();
-    await _saveDiaperReminderSettings();
-    await _rescheduleFeedReminder();
-    await _rescheduleDiaperReminder();
-    await _updateHomeWidget();
+    await _store.restore(backup);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Backup restored.')),
     );
   }
 
-  Future<void> _saveSleepEntries() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(_sleepEntries.map((e) => e.toJson()).toList());
-    await prefs.setString(StorageKeys.sleeps, encoded);
-  }
-
-  Future<void> _saveDiaperEntries() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(_diaperEntries.map((e) => e.toJson()).toList());
-    await prefs.setString(StorageKeys.diapers, encoded);
-  }
-
-  Future<void> _saveGrowthEntries() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = jsonEncode(_growthEntries.map((e) => e.toJson()).toList());
-    await prefs.setString(StorageKeys.growth, encoded);
-  }
-
   Future<void> _recordDiaper() async {
     final entry = await showDiaperEntryForm(context);
     if (entry == null) return;
-    setState(() {
-      _diaperEntries.add(entry);
-      _diaperEntries.sort((a, b) => a.time.compareTo(b.time));
-    });
-    await _saveDiaperEntries();
-    await _rescheduleDiaperReminder();
+    await _store.addDiaper(entry);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Diaper change recorded')),
@@ -409,53 +218,13 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   Future<void> _editDiaper(DiaperEntry entry) async {
     final updated = await showDiaperEntryForm(context, existingEntry: entry);
     if (updated == null) return;
-    setState(() {
-      entry.time = updated.time;
-      entry.pee = updated.pee;
-      entry.poo = updated.poo;
-      entry.notes = updated.notes;
-      _diaperEntries.sort((a, b) => a.time.compareTo(b.time));
-    });
-    await _saveDiaperEntries();
-    await _rescheduleDiaperReminder();
+    await _store.updateDiaper(updated);
   }
 
-  Future<void> _deleteDiaper(DiaperEntry entry) async {
-    setState(() {
-      _diaperEntries.removeWhere((e) => e.id == entry.id);
-    });
-    await _saveDiaperEntries();
-    await _rescheduleDiaperReminder();
-  }
-
-  Future<void> _updateDiaperReminderInterval(Duration interval) async {
-    setState(() {
-      _diaperReminderInterval = interval;
-    });
-    await _saveDiaperReminderSettings();
-    await _rescheduleDiaperReminder();
-  }
-
-  Future<void> _setDiaperReminderEnabled(bool enabled) async {
-    setState(() {
-      _diaperReminderEnabled = enabled;
-    });
-    await _saveDiaperReminderSettings();
-    await _rescheduleDiaperReminder();
-  }
+  Future<void> _deleteDiaper(DiaperEntry entry) => _store.deleteDiaper(entry);
 
   Future<void> _startSleep() async {
-    if (_activeSleep != null) return;
-    final entry = SleepEntry(
-      id: DateTime.now().millisecondsSinceEpoch,
-      start: DateTime.now(),
-    );
-    setState(() {
-      _sleepEntries.add(entry);
-      _sleepEntries.sort((a, b) => a.start.compareTo(b.start));
-    });
-    _updateSleepTicker();
-    await _saveSleepEntries();
+    if (await _store.startSleep() == null) return;
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Sleep started')),
@@ -467,84 +236,36 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   Future<void> _addSleepManually() async {
     final entry = await showSleepEntryForm(context);
     if (entry == null) return;
-    setState(() {
-      _sleepEntries.add(entry);
-      _sleepEntries.sort((a, b) => a.start.compareTo(b.start));
-    });
-    _updateSleepTicker();
-    await _saveSleepEntries();
+    await _store.addSleep(entry);
   }
 
   Future<void> _stopSleep() async {
-    final active = _activeSleep;
-    if (active == null) return;
-    setState(() {
-      active.end = DateTime.now();
-    });
-    _updateSleepTicker();
-    await _saveSleepEntries();
+    final stopped = await _store.stopSleep();
+    if (stopped == null) return;
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Slept for ${formatDuration(active.duration!)}')),
+      SnackBar(content: Text('Slept for ${formatDuration(stopped.duration!)}')),
     );
   }
 
   Future<void> _editSleep(SleepEntry entry) async {
     final updated = await showSleepEntryForm(context, existingEntry: entry);
     if (updated == null) return;
-    setState(() {
-      entry.start = updated.start;
-      entry.end = updated.end;
-      entry.notes = updated.notes;
-      _sleepEntries.sort((a, b) => a.start.compareTo(b.start));
-    });
-    _updateSleepTicker();
-    await _saveSleepEntries();
+    await _store.updateSleep(updated);
   }
 
-  Future<void> _deleteSleep(SleepEntry entry) async {
-    setState(() {
-      _sleepEntries.removeWhere((e) => e.id == entry.id);
-    });
-    _updateSleepTicker();
-    await _saveSleepEntries();
-  }
+  Future<void> _deleteSleep(SleepEntry entry) => _store.deleteSleep(entry);
 
   Future<void> _recordFeed() async {
     final entry = await showFeedingEntryForm(context);
     if (entry == null) return;
-
-    setState(() {
-      _entries.add(entry);
-      _entries.sort((a, b) => a.time.compareTo(b.time));
-    });
-    await _saveEntries();
-    await _rescheduleFeedReminder();
-    await _updateHomeWidget();
+    await _store.addFeeding(entry);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_feedReminderEnabled ? 'Feeding time recorded and reminder set.' : 'Feeding time recorded'),
+        content: Text(_store.feedReminderEnabled ? 'Feeding time recorded and reminder set.' : 'Feeding time recorded'),
       ),
     );
-  }
-
-  Future<void> _updateReminderInterval(Duration interval) async {
-    setState(() {
-      _reminderInterval = interval;
-    });
-    await _saveFeedReminderSettings();
-    await _rescheduleFeedReminder();
-    await _updateHomeWidget();
-  }
-
-  Future<void> _setFeedReminderEnabled(bool enabled) async {
-    setState(() {
-      _feedReminderEnabled = enabled;
-    });
-    await _saveFeedReminderSettings();
-    await _rescheduleFeedReminder();
-    await _updateHomeWidget();
   }
 
   /// Shared hours/minutes picker dialog used for both the feed and diaper
@@ -603,14 +324,14 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
 
   Future<void> _pickReminderInterval() => _pickInterval(
         dialogTitle: 'Set reminder interval',
-        current: _reminderInterval,
-        onSave: _updateReminderInterval,
+        current: _store.feedReminderInterval,
+        onSave: (interval) => _store.setFeedReminder(interval: interval),
       );
 
   Future<void> _pickDiaperReminderInterval() => _pickInterval(
         dialogTitle: 'Set diaper reminder interval',
-        current: _diaperReminderInterval,
-        onSave: _updateDiaperReminderInterval,
+        current: _store.diaperReminderInterval,
+        onSave: (interval) => _store.setDiaperReminder(interval: interval),
       );
 
   /// Shared date-range picker for the filter bars. Returns null when the user
@@ -692,7 +413,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Future<void> _exportSelectedRange() async {
-    if (_entries.isEmpty) {
+    if (_store.feedings.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('There are no feedings to export.')),
@@ -710,7 +431,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       final result = await exportReportToPdf(
         sections: {ReportSection.feedings},
         range: selectedRange,
-        feedings: _entries,
+        feedings: _store.feedings,
       );
       _handleExportResult(result, 'No feedings were found for the selected range.');
     } catch (_) {
@@ -722,7 +443,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Future<void> _exportDiaperSelectedRange() async {
-    if (_diaperEntries.isEmpty) {
+    if (_store.diapers.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('There are no diaper changes to export.')),
@@ -738,7 +459,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       final result = await exportReportToPdf(
         sections: {ReportSection.diapers},
         range: selectedRange,
-        diaperEntries: _diaperEntries,
+        diaperEntries: _store.diapers,
       );
       _handleExportResult(result, 'No diaper changes were found for the selected range.');
     } catch (_) {
@@ -753,7 +474,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   /// tab — that page browses by week rather than an arbitrary range, so the
   /// export follows the same concept instead of adding a second range picker.
   Future<void> _exportSleepWeek() async {
-    if (_sleepEntries.isEmpty) {
+    if (_store.sleeps.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('There is no sleep data to export.')),
@@ -767,7 +488,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       final result = await exportReportToPdf(
         sections: {ReportSection.sleep},
         range: DateTimeRange(start: weekStart, end: weekEnd),
-        sleepEntries: _sleepEntries,
+        sleepEntries: _store.sleeps,
       );
       _handleExportResult(result, 'No sleep sessions found for ${_formatWeekRange(weekStart)}.');
     } catch (_) {
@@ -781,39 +502,21 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   Future<void> _editEntry(FeedingEntry entry) async {
     final updatedEntry = await showFeedingEntryForm(context, existingEntry: entry);
     if (updatedEntry == null) return;
-
-    setState(() {
-      entry.time = updatedEntry.time;
-      entry.milkType = updatedEntry.milkType;
-      entry.amount = updatedEntry.amount;
-      entry.amountUnit = updatedEntry.amountUnit;
-      entry.notes = updatedEntry.notes;
-      _entries.sort((a, b) => a.time.compareTo(b.time));
-    });
-    await _saveEntries();
-    await _rescheduleFeedReminder();
-    await _updateHomeWidget();
+    await _store.updateFeeding(updatedEntry);
   }
 
-  Future<void> _deleteEntry(FeedingEntry entry) async {
-    setState(() {
-      _entries.removeWhere((e) => e.id == entry.id);
-    });
-    await _saveEntries();
-    await _rescheduleFeedReminder();
-    await _updateHomeWidget();
-  }
+  Future<void> _deleteEntry(FeedingEntry entry) => _store.deleteFeeding(entry);
 
   List<FeedingEntry> get _filteredEntries {
     final range = _filterRange;
-    if (range == null) return List.of(_entries);
-    return filterEntriesForRange(_entries, range);
+    if (range == null) return List.of(_store.feedings);
+    return filterEntriesForRange(_store.feedings, range);
   }
 
   List<DiaperEntry> get _filteredDiaperEntries {
     final range = _diaperFilterRange;
-    if (range == null) return List.of(_diaperEntries);
-    return filterEntriesForRange(_diaperEntries, range);
+    if (range == null) return List.of(_store.diapers);
+    return filterEntriesForRange(_store.diapers, range);
   }
 
   String _formatFeedTime(DateTime time) {
@@ -868,7 +571,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                 _buildSleepPage(),
                 _buildDiaperPage(),
                 GrowthPage(
-                  entries: _growthEntries,
+                  entries: _store.growth,
                   onEdit: _editGrowth,
                   onDelete: _deleteGrowth,
                 ),
@@ -971,9 +674,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       };
 
   Widget _buildFeedingSummaryCard() {
-    final lastEntry = _entries.isEmpty ? null : _entries.last;
+    final lastEntry = _store.feedings.isEmpty ? null : _store.feedings.last;
     final lastFeed = lastEntry?.time;
-    final nextReminder = lastFeed?.add(_reminderInterval);
+    final nextReminder = lastFeed?.add(_store.feedReminderInterval);
 
     return Card(
       child: Padding(
@@ -1021,14 +724,14 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Remind me'),
-              value: _feedReminderEnabled,
-              onChanged: _setFeedReminderEnabled,
+              value: _store.feedReminderEnabled,
+              onChanged: (enabled) => _store.setFeedReminder(enabled: enabled),
             ),
-            if (_feedReminderEnabled) ...[
+            if (_store.feedReminderEnabled) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: Text(formatInterval(_reminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
+                  Expanded(child: Text(formatInterval(_store.feedReminderInterval), style: Theme.of(context).textTheme.bodyLarge)),
                   TextButton(onPressed: _pickReminderInterval, child: const Text('Change')),
                 ],
               ),
@@ -1054,8 +757,8 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Widget _buildSleepCard() {
-    final active = _activeSleep;
-    final finished = _sleepEntries.where((e) => !e.isInProgress).toList();
+    final active = _store.activeSleep;
+    final finished = _store.sleeps.where((e) => !e.isInProgress).toList();
     final lastFinished = finished.isEmpty ? null : finished.last;
 
     return Card(
@@ -1153,7 +856,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     // "in" the week if it started before the week ends and (for finished
     // sessions) ended after the week began, matching how WeeklySleepChart
     // clips sessions to each day's bar.
-    final entries = _sleepEntries.where((entry) {
+    final entries = _store.sleeps.where((entry) {
       final effectiveEnd = entry.end ?? now;
       return entry.start.isBefore(weekEndExclusive) && effectiveEnd.isAfter(weekStart);
     }).toList().reversed.toList();
@@ -1168,7 +871,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: WeeklySleepChart(
                   weekStart: _sleepWeekStart,
-                  entries: _sleepEntries,
+                  entries: _store.sleeps,
                   now: now,
                   onTapEntry: _editSleep,
                 ),
@@ -1183,7 +886,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
             hasScrollBody: false,
             child: EmptyState(
               icon: Icons.bedtime,
-              message: _sleepEntries.isEmpty
+              message: _store.sleeps.isEmpty
                   ? 'No sleep sessions yet!\nTap Start sleep on the Home tab, or Add Sleep here.'
                   : 'No sleep sessions for ${_formatWeekRange(weekStart)}.',
             ),
@@ -1321,8 +1024,8 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Widget _buildDiaperCard() {
-    final lastDiaper = _diaperEntries.isEmpty ? null : _diaperEntries.last;
-    final nextDiaperReminder = lastDiaper?.time.add(_diaperReminderInterval);
+    final lastDiaper = _store.diapers.isEmpty ? null : _store.diapers.last;
+    final nextDiaperReminder = lastDiaper?.time.add(_store.diaperReminderInterval);
 
     return Card(
       child: Padding(
@@ -1369,15 +1072,15 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Remind me'),
-              value: _diaperReminderEnabled,
-              onChanged: _setDiaperReminderEnabled,
+              value: _store.diaperReminderEnabled,
+              onChanged: (enabled) => _store.setDiaperReminder(enabled: enabled),
             ),
-            if (_diaperReminderEnabled) ...[
+            if (_store.diaperReminderEnabled) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
-                    child: Text(formatInterval(_diaperReminderInterval), style: Theme.of(context).textTheme.bodyLarge),
+                    child: Text(formatInterval(_store.diaperReminderInterval), style: Theme.of(context).textTheme.bodyLarge),
                   ),
                   TextButton(onPressed: _pickDiaperReminderInterval, child: const Text('Change')),
                 ],
@@ -1406,7 +1109,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   }
 
   Widget _buildGrowthCard() {
-    final last = _growthEntries.isEmpty ? null : _growthEntries.last;
+    final last = _store.growth.isEmpty ? null : _store.growth.last;
 
     return Card(
       child: Padding(
