@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'feeding_entry.dart';
 import 'timestamped_entry.dart';
@@ -9,6 +10,9 @@ DateTime startOfDay(DateTime date) => DateTime(date.year, date.month, date.day);
 /// The last representable second of [date], in local time.
 DateTime endOfDay(DateTime date) =>
     DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+/// Date and time of an entry, e.g. 'Oct 3, 2026 9:05 AM'.
+String formatDateTime(DateTime time) => DateFormat.yMMMd().add_jm().format(time);
 
 /// Entries whose time falls inside [range], inclusive of both whole days.
 ///

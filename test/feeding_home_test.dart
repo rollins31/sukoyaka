@@ -137,4 +137,23 @@ void main() {
 
     expect(find.text('No feedings yet!\nTap Record Feeding to add one.'), findsOneWidget);
   });
+
+  testWidgets('a live sleep ticks on the Home card and stops on wake up', (tester) async {
+    await _pumpHome(tester);
+
+    await tester.scrollUntilVisible(find.text('Start sleep'), 200);
+    await tester.tap(find.text('Start sleep'));
+    // pumpAndSettle would never settle while the once-a-second ticker runs.
+    await tester.pump();
+    expect(find.text('Wake up'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^0m \d\ds$')), findsOneWidget);
+
+    // The ticker keeps scheduling frames; it must stop once the sleep ends,
+    // or this pumpAndSettle times out.
+    await tester.pump(const Duration(seconds: 2));
+    await tester.tap(find.text('Wake up'));
+    await tester.pumpAndSettle();
+    expect(find.text('Start sleep'), findsOneWidget);
+    expect(find.textContaining('Last slept'), findsOneWidget);
+  });
 }
