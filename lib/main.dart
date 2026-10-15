@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'app_store.dart';
 import 'app_theme.dart';
-import 'backup_data.dart';
 import 'diapers_page.dart';
 import 'entry_actions.dart';
 import 'feedings_page.dart';
@@ -114,31 +113,9 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
     await _store.syncReminders();
   }
 
-  Future<void> _openSettings() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => SettingsScreen(
-          feedings: List.of(_store.feedings),
-          sleepEntries: List.of(_store.sleeps),
-          diaperEntries: List.of(_store.diapers),
-          feedReminderEnabled: _store.feedReminderEnabled,
-          reminderInterval: _store.feedReminderInterval,
-          diaperReminderEnabled: _store.diaperReminderEnabled,
-          diaperReminderInterval: _store.diaperReminderInterval,
-          growthEntries: List.of(_store.growth),
-          onRestore: _restoreFromBackup,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _restoreFromBackup(AppBackup backup) async {
-    await _store.restore(backup);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Backup restored.')),
-    );
-  }
+  Future<void> _openSettings() => Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => SettingsScreen(store: _store)),
+      );
 
   @override
   Widget build(BuildContext context) {

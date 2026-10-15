@@ -122,23 +122,6 @@ class _ReminderSection extends StatelessWidget {
   }
 }
 
-/// A Home card: padded column of [children] stretched to the card's width.
-class _HomeCard extends StatelessWidget {
-  const _HomeCard({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
-      ),
-    );
-  }
-}
-
 final _bigButtonStyle = ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18));
 
 class FeedingSummaryCard extends StatelessWidget {
@@ -151,7 +134,7 @@ class FeedingSummaryCard extends StatelessWidget {
     final lastEntry = store.feedings.isEmpty ? null : store.feedings.last;
     final lastFeed = lastEntry?.time;
 
-    return _HomeCard(
+    return SectionCard(
       children: [
         const SectionTitle(Icons.local_drink, 'Feeding'),
         const SizedBox(height: 12),
@@ -220,7 +203,7 @@ class SleepCard extends StatelessWidget {
     final finished = store.sleeps.where((e) => !e.isInProgress).toList();
     final lastFinished = finished.isEmpty ? null : finished.last;
 
-    return _HomeCard(
+    return SectionCard(
       children: [
         const SectionTitle(Icons.bedtime, 'Sleep'),
         const SizedBox(height: 12),
@@ -309,7 +292,7 @@ class DiaperCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final lastDiaper = store.diapers.isEmpty ? null : store.diapers.last;
 
-    return _HomeCard(
+    return SectionCard(
       children: [
         const SectionTitle(Icons.baby_changing_station, 'Diaper change'),
         const SizedBox(height: 12),
@@ -376,7 +359,7 @@ class GrowthCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final last = store.growth.isEmpty ? null : store.growth.last;
 
-    return _HomeCard(
+    return SectionCard(
       children: [
         const SectionTitle(Icons.monitor_weight, 'Growth'),
         const SizedBox(height: 12),

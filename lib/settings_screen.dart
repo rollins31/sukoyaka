@@ -1,44 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import 'app_store.dart';
 import 'app_theme.dart';
 import 'backup_data.dart';
 import 'backup_service.dart';
-import 'diaper_entry.dart';
-import 'feeding_entry.dart';
-import 'growth_entry.dart';
+import 'date_range_filter_bar.dart';
+import 'export_result_snackbar.dart';
 import 'home_layout_screen.dart';
 import 'pdf_export.dart';
 import 'privacy_policy_screen.dart';
-import 'sleep_entry.dart';
+import 'section_title.dart';
 
-/// Settings screen: appearance, backup/restore, and PDF reports.
-/// [onRestore] is expected to replace the app's stored data, persist it, and
-/// reschedule reminders; this screen pops itself once that finishes.
+/// Settings screen: appearance, Home layout, backup/restore, PDF reports and
+/// app info. Pops itself after a successful restore.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({
-    super.key,
-    required this.feedings,
-    required this.sleepEntries,
-    required this.diaperEntries,
-    required this.growthEntries,
-    required this.feedReminderEnabled,
-    required this.reminderInterval,
-    required this.diaperReminderEnabled,
-    required this.diaperReminderInterval,
-    required this.onRestore,
-  });
+  const SettingsScreen({super.key, required this.store});
 
-  final List<FeedingEntry> feedings;
-  final List<SleepEntry> sleepEntries;
-  final List<DiaperEntry> diaperEntries;
-  final List<GrowthEntry> growthEntries;
-  final bool feedReminderEnabled;
-  final Duration reminderInterval;
-  final bool diaperReminderEnabled;
-  final Duration diaperReminderInterval;
-  final Future<void> Function(AppBackup backup) onRestore;
+  final AppStore store;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -54,21 +33,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   };
   DateTimeRange? _reportRange;
 
+  AppStore get _store => widget.store;
+
   Future<void> _export() async {
     setState(() => _busy = true);
     try {
-      final backup = AppBackup(
-        exportedAt: DateTime.now(),
-        feedings: widget.feedings,
-        sleepEntries: widget.sleepEntries,
-        diaperEntries: widget.diaperEntries,
-        growthEntries: widget.growthEntries,
-        feedReminderEnabled: widget.feedReminderEnabled,
-        reminderIntervalMinutes: widget.reminderInterval.inMinutes,
-        diaperReminderEnabled: widget.diaperReminderEnabled,
-        diaperReminderIntervalMinutes: widget.diaperReminderInterval.inMinutes,
-      );
-      await shareBackup(backup);
+      await shareBackup(_store.toBackup());
     } catch (_) {
       _showError('Couldn\'t export backup. Please try again.');
     } finally {
@@ -94,8 +64,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _busy = true);
-    await widget.onRestore(backup);
+    await _store.restore(backup);
     if (!mounted) return;
+    // The messenger outlives this route, so the message stays up on Home.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Backup restored.')),
+    );
     Navigator.of(context).pop();
   }
 
@@ -132,330 +106,215 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _pickReportRange() async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: _reportRange,
-      // Calendar-only: typing a range as raw mm/dd/yyyy text is fussier than
-      // just tapping the two dates, and error-prone if the format's off.
-      initialEntryMode: DatePickerEntryMode.calendarOnly,
-    );
+    final picked = await pickDateRange(context, _reportRange);
     if (picked == null) return;
     setState(() => _reportRange = picked);
   }
 
   Future<void> _exportPdf() async {
     setState(() => _busy = true);
-    try {
-      final result = await exportReportToPdf(
+    await exportWithFeedback(
+      context,
+      export: () => exportReportToPdf(
         sections: _reportSections,
         range: _reportRange,
-        feedings: widget.feedings,
-        sleepEntries: widget.sleepEntries,
-        diaperEntries: widget.diaperEntries,
-        growthEntries: widget.growthEntries,
-      );
-      if (!mounted) return;
-      // A successful share or one the user backed out of already got its own
-      // feedback from the OS share sheet; only the other outcomes need ours.
-      switch (result) {
-        case ReportExportResult.noData:
-          _showError('No records found for the selected type(s) and range.');
-        case ReportExportResult.unavailable:
-          _showError('Sharing isn\'t available on this device.');
-        case ReportExportResult.shared:
-        case ReportExportResult.cancelled:
-          break;
-      }
-    } catch (_) {
-      _showError('Couldn\'t export PDF. Please try again.');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+        feedings: _store.feedings,
+        sleepEntries: _store.sleeps,
+        diaperEntries: _store.diapers,
+        growthEntries: _store.growth,
+      ),
+      noDataMessage: 'No records found for the selected type(s) and range.',
+    );
+    if (mounted) setState(() => _busy = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final feedingCount = widget.feedings.length;
-    final sleepCount = widget.sleepEntries.length;
-    final diaperCount = widget.diaperEntries.length;
-    final growthCount = widget.growthEntries.length;
-    final totalCount = feedingCount + sleepCount + diaperCount + growthCount;
-
+    final mutedStyle = TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.brightness_medium, size: 20, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Appearance',
-                        style: GoogleFonts.baloo2(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+          SectionCard(
+            children: [
+              const SectionTitle(Icons.brightness_medium, 'Appearance'),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<ThemeMode>(
+                valueListenable: themeModeNotifier,
+                builder: (context, mode, _) {
+                  return SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        label: FittedBox(fit: BoxFit.scaleDown, child: Text('System')),
+                        icon: Icon(Icons.brightness_auto),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        label: FittedBox(fit: BoxFit.scaleDown, child: Text('Light')),
+                        icon: Icon(Icons.light_mode),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        label: FittedBox(fit: BoxFit.scaleDown, child: Text('Dark')),
+                        icon: Icon(Icons.dark_mode),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  ValueListenableBuilder<ThemeMode>(
-                    valueListenable: themeModeNotifier,
-                    builder: (context, mode, _) {
-                      return SegmentedButton<ThemeMode>(
-                        segments: const [
-                          ButtonSegment(
-                            value: ThemeMode.system,
-                            label: FittedBox(fit: BoxFit.scaleDown, child: Text('System')),
-                            icon: Icon(Icons.brightness_auto),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.light,
-                            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Light')),
-                            icon: Icon(Icons.light_mode),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.dark,
-                            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Dark')),
-                            icon: Icon(Icons.dark_mode),
-                          ),
-                        ],
-                        selected: {mode},
-                        onSelectionChanged: (selection) => setThemeMode(selection.first),
-                      );
-                    },
-                  ),
-                ],
+                    selected: {mode},
+                    onSelectionChanged: (selection) => setThemeMode(selection.first),
+                  );
+                },
               ),
-            ),
+            ],
           ),
           const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+          SectionCard(
+            children: [
+              const SectionTitle(Icons.dashboard_customize, 'Home page'),
+              const SizedBox(height: 8),
+              Text('Choose which category cards appear on the Home page and in what order.', style: mutedStyle),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const HomeLayoutScreen()),
+                ),
+                icon: const Icon(Icons.reorder),
+                label: const Text('Customize home page'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            children: [
+              const SectionTitle(Icons.save, 'Backup & restore'),
+              const SizedBox(height: 8),
+              // Counts can change while this screen is open, e.g. when the app
+              // resumes after a widget quick-log.
+              ListenableBuilder(
+                listenable: _store,
+                builder: (context, _) => Text(_recordSummary(), style: mutedStyle),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _busy ? null : _export,
+                icon: const Icon(Icons.ios_share),
+                label: const Text('Export backup'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _import,
+                icon: const Icon(Icons.file_open),
+                label: const Text('Restore from backup'),
+              ),
+              if (_busy) ...[
+                const SizedBox(height: 16),
+                const Center(child: CircularProgressIndicator()),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            children: [
+              const SectionTitle(Icons.picture_as_pdf, 'PDF report'),
+              const SizedBox(height: 12),
+              Text('Include:', style: mutedStyle),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.dashboard_customize, size: 20, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Home page',
-                        style: GoogleFonts.baloo2(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Choose which category cards appear on the Home page and in what order.',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (context) => const HomeLayoutScreen()),
+                  for (final section in ReportSection.values)
+                    FilterChip(
+                      label: Text(_labelFor(section)),
+                      selected: _reportSections.contains(section),
+                      onSelected: (selected) => setState(() {
+                        if (selected) {
+                          _reportSections.add(section);
+                        } else {
+                          _reportSections.remove(section);
+                        }
+                      }),
                     ),
-                    icon: const Icon(Icons.reorder),
-                    label: const Text('Customize home page'),
-                  ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              const SizedBox(height: 12),
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.save, size: 20, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Backup & restore',
-                        style: GoogleFonts.baloo2(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'On this device: $totalCount record${totalCount == 1 ? '' : 's'} '
-                    '($feedingCount feedings, $sleepCount sleep sessions, $diaperCount diaper '
-                    'changes, $growthCount growth measurements).',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _busy ? null : _export,
-                    icon: const Icon(Icons.ios_share),
-                    label: const Text('Export backup'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : _import,
-                    icon: const Icon(Icons.file_open),
-                    label: const Text('Restore from backup'),
-                  ),
-                  if (_busy) ...[
-                    const SizedBox(height: 16),
-                    const Center(child: CircularProgressIndicator()),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.picture_as_pdf, size: 20, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'PDF report',
-                        style: GoogleFonts.baloo2(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Include:',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final section in ReportSection.values)
-                        FilterChip(
-                          label: Text(_labelFor(section)),
-                          selected: _reportSections.contains(section),
-                          onSelected: (selected) => setState(() {
-                            if (selected) {
-                              _reportSections.add(section);
-                            } else {
-                              _reportSections.remove(section);
-                            }
-                          }),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _pickReportRange,
-                          icon: const Icon(Icons.date_range),
-                          label: Text(_reportRange == null ? 'All time' : formatDateRange(_reportRange!)),
-                        ),
-                      ),
-                      if (_reportRange != null) ...[
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () => setState(() => _reportRange = null),
-                          icon: const Icon(Icons.clear),
-                          tooltip: 'Clear (use all time)',
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: (_busy || _reportSections.isEmpty) ? null : _exportPdf,
-                    icon: const Icon(Icons.picture_as_pdf),
-                    label: const Text('Export PDF report'),
-                  ),
-                  if (_reportSections.isEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Pick at least one type to include.',
-                      style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 13),
-                    ),
-                  ],
-                  if (_busy) ...[
-                    const SizedBox(height: 16),
-                    const Center(child: CircularProgressIndicator()),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'About',
-                        style: GoogleFonts.baloo2(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.privacy_tip_outlined),
-                    title: const Text('Privacy Policy'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickReportRange,
+                      icon: const Icon(Icons.date_range),
+                      label: Text(_reportRange == null ? 'All time' : formatDateRange(_reportRange!)),
                     ),
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.description_outlined),
-                    title: const Text('Open-source licenses'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => showLicensePage(context: context, applicationName: 'Sukoyaka'),
-                  ),
+                  if (_reportRange != null) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => setState(() => _reportRange = null),
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Clear (use all time)',
+                    ),
+                  ],
                 ],
               ),
-            ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: (_busy || _reportSections.isEmpty) ? null : _exportPdf,
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('Export PDF report'),
+              ),
+              if (_reportSections.isEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Pick at least one type to include.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 13),
+                ),
+              ],
+              if (_busy) ...[
+                const SizedBox(height: 16),
+                const Center(child: CircularProgressIndicator()),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            children: [
+              const SectionTitle(Icons.info_outline, 'About'),
+              const SizedBox(height: 4),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacy Policy'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.description_outlined),
+                title: const Text('Open-source licenses'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => showLicensePage(context: context, applicationName: 'Sukoyaka'),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  /// "On this device: 7 records (1 feedings, 3 sleep sessions, …)."
+  String _recordSummary() {
+    final feedings = _store.feedings.length;
+    final sleeps = _store.sleeps.length;
+    final diapers = _store.diapers.length;
+    final growth = _store.growth.length;
+    final total = feedings + sleeps + diapers + growth;
+    return 'On this device: $total record${total == 1 ? '' : 's'} '
+        '($feedings feedings, $sleeps sleep sessions, $diapers diaper '
+        'changes, $growth growth measurements).';
   }
 
   String _labelFor(ReportSection section) => switch (section) {

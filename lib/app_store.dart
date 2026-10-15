@@ -78,6 +78,19 @@ class AppStore extends ChangeNotifier {
     await _syncWidget();
   }
 
+  /// Everything [restore] would need to bring this data back.
+  AppBackup toBackup() => AppBackup(
+        exportedAt: DateTime.now(),
+        feedings: List.of(_feedings),
+        sleepEntries: List.of(_sleeps),
+        diaperEntries: List.of(_diapers),
+        growthEntries: List.of(_growth),
+        feedReminderEnabled: _feedReminderEnabled,
+        reminderIntervalMinutes: _feedReminderInterval.inMinutes,
+        diaperReminderEnabled: _diaperReminderEnabled,
+        diaperReminderIntervalMinutes: _diaperReminderInterval.inMinutes,
+      );
+
   /// Replaces all data with the contents of [backup] and persists it.
   Future<void> restore(AppBackup backup) async {
     _replace(_feedings, backup.feedings);

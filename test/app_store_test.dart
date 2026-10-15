@@ -146,4 +146,21 @@ void main() {
     expect(reloaded.sleeps.map((e) => e.id), [5]);
     expect(reloaded.feedReminderInterval, const Duration(hours: 2));
   });
+
+  test('toBackup captures everything restore needs', () async {
+    final store = AppStore();
+    await store.addFeeding(feedingAt(1, DateTime(2026, 10, 1)));
+    await store.setDiaperReminder(enabled: true, interval: const Duration(minutes: 45));
+
+    final backup = store.toBackup();
+    await store.deleteFeeding(store.feedings.single);
+
+    // The backup is a snapshot, unaffected by later changes.
+    expect(backup.feedings.map((e) => e.id), [1]);
+    expect(backup.diaperReminderEnabled, isTrue);
+    expect(backup.diaperReminderIntervalMinutes, 45);
+
+    await store.restore(backup);
+    expect(store.feedings.map((e) => e.id), [1]);
+  });
 }

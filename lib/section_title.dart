@@ -23,3 +23,21 @@ class SectionTitle extends StatelessWidget {
     );
   }
 }
+
+/// A card holding a section: a padded column of [children], stretched to
+/// the card's width. Used for the Home cards and the Settings sections.
+class SectionCard extends StatelessWidget {
+  const SectionCard({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+      ),
+    );
+  }
+}
