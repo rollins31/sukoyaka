@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_storage_keys.dart';
 import 'diaper_entry.dart';
 import 'diaper_entry_form.dart';
 import 'feeding_entry.dart';
@@ -13,13 +14,6 @@ import 'notification_service.dart';
 import 'sleep_entry.dart';
 import 'sleep_entry_form.dart';
 
-const _entriesKey = 'feeding_entries';
-const _intervalKey = 'reminder_interval_minutes';
-const _feedReminderEnabledKey = 'feed_reminder_enabled';
-const _sleepEntriesKey = 'sleep_entries';
-const _diaperEntriesKey = 'diaper_entries';
-const _diaperReminderEnabledKey = 'diaper_reminder_enabled';
-const _diaperIntervalKey = 'diaper_reminder_interval_minutes';
 const _closeChannel = MethodChannel('quick_log/close');
 
 /// Which kind of entry the widget's quick-log popup was launched to record.
@@ -70,15 +64,15 @@ class _QuickLogScreenState extends State<QuickLogScreen> {
 Future<void> _persistQuickLogFeeding(FeedingEntry entry) async {
   final prefs = await SharedPreferences.getInstance();
 
-  final jsonString = prefs.getString(_entriesKey);
+  final jsonString = prefs.getString(StorageKeys.feedings);
   final rawEntries = jsonString == null ? [] : jsonDecode(jsonString) as List<dynamic>;
   final entries = rawEntries.map((raw) => FeedingEntry.fromJson(raw as Map<String, dynamic>)).toList()
     ..add(entry)
     ..sort((a, b) => a.time.compareTo(b.time));
-  await prefs.setString(_entriesKey, jsonEncode(entries.map((e) => e.toJson()).toList()));
+  await prefs.setString(StorageKeys.feedings, jsonEncode(entries.map((e) => e.toJson()).toList()));
 
-  final feedReminderEnabled = prefs.getBool(_feedReminderEnabledKey) ?? true;
-  final reminderInterval = Duration(minutes: prefs.getInt(_intervalKey) ?? 180);
+  final feedReminderEnabled = prefs.getBool(StorageKeys.feedReminderEnabled) ?? true;
+  final reminderInterval = Duration(minutes: prefs.getInt(StorageKeys.feedReminderInterval) ?? 180);
 
   await NotificationService.initialize();
   await NotificationService.cancelReminder();
@@ -92,26 +86,26 @@ Future<void> _persistQuickLogFeeding(FeedingEntry entry) async {
 Future<void> _persistQuickLogSleep(SleepEntry entry) async {
   final prefs = await SharedPreferences.getInstance();
 
-  final jsonString = prefs.getString(_sleepEntriesKey);
+  final jsonString = prefs.getString(StorageKeys.sleeps);
   final rawEntries = jsonString == null ? [] : jsonDecode(jsonString) as List<dynamic>;
   final entries = rawEntries.map((raw) => SleepEntry.fromJson(raw as Map<String, dynamic>)).toList()
     ..add(entry)
     ..sort((a, b) => a.start.compareTo(b.start));
-  await prefs.setString(_sleepEntriesKey, jsonEncode(entries.map((e) => e.toJson()).toList()));
+  await prefs.setString(StorageKeys.sleeps, jsonEncode(entries.map((e) => e.toJson()).toList()));
 }
 
 Future<void> _persistQuickLogDiaper(DiaperEntry entry) async {
   final prefs = await SharedPreferences.getInstance();
 
-  final jsonString = prefs.getString(_diaperEntriesKey);
+  final jsonString = prefs.getString(StorageKeys.diapers);
   final rawEntries = jsonString == null ? [] : jsonDecode(jsonString) as List<dynamic>;
   final entries = rawEntries.map((raw) => DiaperEntry.fromJson(raw as Map<String, dynamic>)).toList()
     ..add(entry)
     ..sort((a, b) => a.time.compareTo(b.time));
-  await prefs.setString(_diaperEntriesKey, jsonEncode(entries.map((e) => e.toJson()).toList()));
+  await prefs.setString(StorageKeys.diapers, jsonEncode(entries.map((e) => e.toJson()).toList()));
 
-  final diaperReminderEnabled = prefs.getBool(_diaperReminderEnabledKey) ?? false;
-  final diaperInterval = Duration(minutes: prefs.getInt(_diaperIntervalKey) ?? 180);
+  final diaperReminderEnabled = prefs.getBool(StorageKeys.diaperReminderEnabled) ?? false;
+  final diaperInterval = Duration(minutes: prefs.getInt(StorageKeys.diaperReminderInterval) ?? 180);
 
   await NotificationService.initialize();
   await NotificationService.cancelDiaperReminder();

@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_storage_keys.dart';
+import 'app_theme.dart';
 import 'backup_data.dart';
 import 'diaper_entry.dart';
 import 'diaper_entry_form.dart';
@@ -30,59 +30,18 @@ import 'sleep_entry.dart';
 import 'sleep_entry_form.dart';
 import 'weekly_sleep_chart.dart';
 
-const _entriesKey = 'feeding_entries';
-const _sleepEntriesKey = 'sleep_entries';
-const _diaperEntriesKey = 'diaper_entries';
-const _growthEntriesKey = 'growth_entries';
-const _intervalKey = 'reminder_interval_minutes';
-const _feedReminderEnabledKey = 'feed_reminder_enabled';
-const _diaperReminderEnabledKey = 'diaper_reminder_enabled';
-const _diaperIntervalKey = 'diaper_reminder_interval_minutes';
-const _themeModeKey = 'theme_mode';
-
-/// Global so the Settings screen (pushed several routes below [MainApp]) can
-/// change the app's theme without wiring a state-management dependency into
-/// an app that otherwise just reads/writes SharedPreferences directly.
-final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.system);
-
-Future<void> _loadThemeMode() async {
-  final prefs = await SharedPreferences.getInstance();
-  final stored = prefs.getString(_themeModeKey);
-  if (stored != null) {
-    themeModeNotifier.value = ThemeMode.values.byName(stored);
-  }
-}
-
-Future<void> setThemeMode(ThemeMode mode) async {
-  themeModeNotifier.value = mode;
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(_themeModeKey, mode.name);
-}
-
-/// The bundled fonts are under the SIL Open Font License, which requires
-/// shipping its text with the fonts; this surfaces it on Flutter's licenses
-/// page alongside the package licenses.
-void _registerFontLicenses() {
-  LicenseRegistry.addLicense(() async* {
-    for (final (font, file) in [('Nunito', 'OFL-Nunito.txt'), ('Baloo 2', 'OFL-Baloo2.txt')]) {
-      final text = await rootBundle.loadString('assets/google_fonts/$file');
-      yield LicenseEntryWithLineBreaks([font], text);
-    }
-  });
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Fonts are bundled under assets/google_fonts/, so never fall back to
   // fetching them from Google at runtime.
   GoogleFonts.config.allowRuntimeFetching = false;
-  _registerFontLicenses();
+  registerFontLicenses();
   try {
     await NotificationService.initialize();
   } catch (e) {
     debugPrint('NotificationService.initialize() error: $e');
   }
-  await _loadThemeMode();
+  await loadThemeMode();
   await loadHomeLayout();
   runApp(const MainApp());
 }
@@ -92,41 +51,16 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lightColorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF4A55C9),
-      brightness: Brightness.light,
-      secondary: const Color(0xFF7EC8BC),
-      tertiary: const Color(0xFFD9A441),
-      surface: const Color(0xFFFDF6F0),
-    );
-    // Soft rounded typeface for a warm, baby-friendly feel, with dark brown
-    // body text tuned for the cream light background above.
-    final lightTextTheme = GoogleFonts.nunitoTextTheme(
-      ThemeData.light().textTheme.apply(
-            bodyColor: const Color(0xFF4A4038),
-            displayColor: const Color(0xFF4A4038),
-          ),
-    );
-
-    final darkColorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF4A55C9),
-      brightness: Brightness.dark,
-      secondary: const Color(0xFF7EC8BC),
-      tertiary: const Color(0xFFD9A441),
-    );
-    // Unlike light mode, dark mode keeps Material 3's generated on-surface
-    // color instead of a fixed override, since a single hardcoded text color
-    // can't stay legible against every dark surface tone.
-    final darkTextTheme = GoogleFonts.nunitoTextTheme(ThemeData.dark().textTheme);
-
+    final lightTheme = buildLightTheme();
+    final darkTheme = buildDarkTheme();
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeModeNotifier,
       builder: (context, mode, _) {
         return MaterialApp(
           title: 'Sukoyaka',
           themeMode: mode,
-          theme: _buildTheme(lightColorScheme, lightTextTheme),
-          darkTheme: _buildTheme(darkColorScheme, darkTextTheme),
+          theme: lightTheme,
+          darkTheme: darkTheme,
           routes: {
             '/': (context) => const FeedingHome(),
             '/quickLog/feeding': (context) => const QuickLogScreen(type: QuickLogType.feeding),
@@ -137,91 +71,6 @@ class MainApp extends StatelessWidget {
       },
     );
   }
-}
-
-/// Shared between light and dark mode — only the [colorScheme] and
-/// [textTheme] differ; every widget-specific style below derives its colors
-/// from the scheme so it adapts automatically.
-ThemeData _buildTheme(ColorScheme colorScheme, TextTheme textTheme) {
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: colorScheme,
-    scaffoldBackgroundColor: colorScheme.surface,
-    textTheme: textTheme,
-    appBarTheme: AppBarTheme(
-      backgroundColor: colorScheme.primaryContainer,
-      foregroundColor: colorScheme.onPrimaryContainer,
-      elevation: 0,
-      centerTitle: true,
-      titleTextStyle: GoogleFonts.baloo2(
-        color: colorScheme.onPrimaryContainer,
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
-      ),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-      ),
-    ),
-    cardTheme: CardThemeData(
-      color: colorScheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(26),
-      ),
-      elevation: 2,
-      shadowColor: colorScheme.primary.withValues(alpha: 0.25),
-      margin: const EdgeInsets.symmetric(vertical: 8),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-        shape: const StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        textStyle: GoogleFonts.baloo2(fontSize: 17, fontWeight: FontWeight.w600),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: colorScheme.primary,
-        side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.4), width: 1.5),
-        shape: const StadiumBorder(),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        textStyle: GoogleFonts.baloo2(fontSize: 15, fontWeight: FontWeight.w600),
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: colorScheme.primary,
-        textStyle: GoogleFonts.baloo2(fontSize: 15, fontWeight: FontWeight.w700),
-      ),
-    ),
-    floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: colorScheme.secondary,
-      foregroundColor: colorScheme.onSecondary,
-      extendedTextStyle: GoogleFonts.baloo2(fontSize: 16, fontWeight: FontWeight.w700),
-      shape: const StadiumBorder(),
-    ),
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      indicatorColor: colorScheme.primaryContainer,
-      elevation: 3,
-      labelTextStyle: WidgetStatePropertyAll(
-        GoogleFonts.nunito(fontSize: 12, fontWeight: FontWeight.w700),
-      ),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    ),
-    dialogTheme: DialogThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
-      titleTextStyle: GoogleFonts.baloo2(
-        color: colorScheme.onSurface,
-        fontSize: 20,
-        fontWeight: FontWeight.w700,
-      ),
-    ),
-  );
 }
 
 class FeedingHome extends StatefulWidget {
@@ -312,14 +161,14 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
       // this app sat backgrounded, never killed) would stay invisible until
       // the process actually restarted.
       await prefs.reload();
-      final jsonString = prefs.getString(_entriesKey);
+      final jsonString = prefs.getString(StorageKeys.feedings);
       final rawEntries = jsonString == null ? [] : jsonDecode(jsonString) as List<dynamic>;
       final loadedEntries = rawEntries
           .map((raw) => FeedingEntry.fromJson(raw as Map<String, dynamic>))
           .toList();
       loadedEntries.sort((a, b) => a.time.compareTo(b.time));
 
-      final sleepJsonString = prefs.getString(_sleepEntriesKey);
+      final sleepJsonString = prefs.getString(StorageKeys.sleeps);
       final rawSleepEntries =
           sleepJsonString == null ? [] : jsonDecode(sleepJsonString) as List<dynamic>;
       final loadedSleepEntries = rawSleepEntries
@@ -327,7 +176,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           .toList();
       loadedSleepEntries.sort((a, b) => a.start.compareTo(b.start));
 
-      final diaperJsonString = prefs.getString(_diaperEntriesKey);
+      final diaperJsonString = prefs.getString(StorageKeys.diapers);
       final rawDiaperEntries =
           diaperJsonString == null ? [] : jsonDecode(diaperJsonString) as List<dynamic>;
       final loadedDiaperEntries = rawDiaperEntries
@@ -335,7 +184,7 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           .toList();
       loadedDiaperEntries.sort((a, b) => a.time.compareTo(b.time));
 
-      final growthJsonString = prefs.getString(_growthEntriesKey);
+      final growthJsonString = prefs.getString(StorageKeys.growth);
       final rawGrowthEntries =
           growthJsonString == null ? [] : jsonDecode(growthJsonString) as List<dynamic>;
       final loadedGrowthEntries = rawGrowthEntries
@@ -343,10 +192,10 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
           .toList();
       loadedGrowthEntries.sort((a, b) => a.time.compareTo(b.time));
 
-      final feedReminderEnabled = prefs.getBool(_feedReminderEnabledKey) ?? true;
-      final intervalMinutes = prefs.getInt(_intervalKey) ?? 180;
-      final diaperReminderEnabled = prefs.getBool(_diaperReminderEnabledKey) ?? false;
-      final diaperIntervalMinutes = prefs.getInt(_diaperIntervalKey) ?? 180;
+      final feedReminderEnabled = prefs.getBool(StorageKeys.feedReminderEnabled) ?? true;
+      final intervalMinutes = prefs.getInt(StorageKeys.feedReminderInterval) ?? 180;
+      final diaperReminderEnabled = prefs.getBool(StorageKeys.diaperReminderEnabled) ?? false;
+      final diaperIntervalMinutes = prefs.getInt(StorageKeys.diaperReminderInterval) ?? 180;
       setState(() {
         _entries
           ..clear()
@@ -382,19 +231,19 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   Future<void> _saveEntries() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(_entries.map((e) => e.toJson()).toList());
-    await prefs.setString(_entriesKey, encoded);
+    await prefs.setString(StorageKeys.feedings, encoded);
   }
 
   Future<void> _saveFeedReminderSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_feedReminderEnabledKey, _feedReminderEnabled);
-    await prefs.setInt(_intervalKey, _reminderInterval.inMinutes);
+    await prefs.setBool(StorageKeys.feedReminderEnabled, _feedReminderEnabled);
+    await prefs.setInt(StorageKeys.feedReminderInterval, _reminderInterval.inMinutes);
   }
 
   Future<void> _saveDiaperReminderSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_diaperReminderEnabledKey, _diaperReminderEnabled);
-    await prefs.setInt(_diaperIntervalKey, _diaperReminderInterval.inMinutes);
+    await prefs.setBool(StorageKeys.diaperReminderEnabled, _diaperReminderEnabled);
+    await prefs.setInt(StorageKeys.diaperReminderInterval, _diaperReminderInterval.inMinutes);
   }
 
   /// Cancels any pending feed reminder, then reschedules it from the last
@@ -527,19 +376,19 @@ class _FeedingHomeState extends State<FeedingHome> with WidgetsBindingObserver {
   Future<void> _saveSleepEntries() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(_sleepEntries.map((e) => e.toJson()).toList());
-    await prefs.setString(_sleepEntriesKey, encoded);
+    await prefs.setString(StorageKeys.sleeps, encoded);
   }
 
   Future<void> _saveDiaperEntries() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(_diaperEntries.map((e) => e.toJson()).toList());
-    await prefs.setString(_diaperEntriesKey, encoded);
+    await prefs.setString(StorageKeys.diapers, encoded);
   }
 
   Future<void> _saveGrowthEntries() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(_growthEntries.map((e) => e.toJson()).toList());
-    await prefs.setString(_growthEntriesKey, encoded);
+    await prefs.setString(StorageKeys.growth, encoded);
   }
 
   Future<void> _recordDiaper() async {

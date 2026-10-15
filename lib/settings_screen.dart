@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import 'app_theme.dart';
 import 'backup_data.dart';
 import 'backup_service.dart';
 import 'diaper_entry.dart';
 import 'feeding_entry.dart';
 import 'growth_entry.dart';
 import 'home_layout_screen.dart';
-import 'main.dart' show themeModeNotifier, setThemeMode;
 import 'pdf_export.dart';
 import 'privacy_policy_screen.dart';
 import 'sleep_entry.dart';
