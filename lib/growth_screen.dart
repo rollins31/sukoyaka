@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import 'date_range_filter_bar.dart';
 import 'empty_state.dart';
 import 'feeding_filters.dart';
 import 'growth_chart.dart';
@@ -67,7 +68,10 @@ class _GrowthPageState extends State<GrowthPage> {
                   onSelectionChanged: (selection) => setState(() => _metric = selection.first),
                 ),
               ),
-              _buildFilterBar(),
+              DateRangeFilterBar(
+                range: _filterRange,
+                onChanged: (range) => setState(() => _filterRange = range),
+              ),
               if (entries.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
@@ -89,114 +93,13 @@ class _GrowthPageState extends State<GrowthPage> {
               icon: _filterRange == null ? Icons.monitor_weight : Icons.search,
               message: _filterRange == null
                   ? 'No measurements yet!\nTap Add Measurement to record one.'
-                  : 'No measurements found for ${_formatFilterRange(_filterRange!)}.',
+                  : 'No measurements found for ${formatFilterRange(_filterRange!)}.',
             ),
           )
         else
           _buildGroupedSliver(entries),
       ],
     );
-  }
-
-  /// The date-range button, quick-filter chips and clear button, mirroring
-  /// the filter bar shared by the Feedings and Diapers tabs.
-  Widget _buildFilterBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final selected = await _pickDateRange(_filterRange);
-                    if (selected == null) return;
-                    setState(() => _filterRange = selected);
-                  },
-                  icon: const Icon(Icons.date_range),
-                  label: Text(
-                    _filterRange == null ? 'Filter by date range' : _formatFilterRange(_filterRange!),
-                  ),
-                ),
-              ),
-              if (_filterRange != null) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () => setState(() => _filterRange = null),
-                  icon: const Icon(Icons.clear),
-                  tooltip: 'Clear filter',
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final preset in _filterPresets())
-                FilterChip(
-                  label: Text(preset.label),
-                  selected: _isPresetActive(preset.range, _filterRange),
-                  onSelected: (selected) => setState(() => _filterRange = selected ? preset.range : null),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Shared date-range picker for the filter bar. Returns null when the user
-  /// backs out, so the caller leaves the current range untouched.
-  Future<DateTimeRange?> _pickDateRange(DateTimeRange? initial) {
-    return showDateRangePicker(
-      context: context,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: initial,
-      // Calendar-only: typing a range as raw mm/dd/yyyy text is fussier than
-      // just tapping the two dates, and error-prone if the format's off.
-      initialEntryMode: DatePickerEntryMode.calendarOnly,
-    );
-  }
-
-  /// The quick-filter presets offered above the measurement list. Ranges are
-  /// built from bare dates because [filterEntriesForRange] widens them to
-  /// whole days.
-  List<({String label, DateTimeRange range})> _filterPresets() {
-    final today = startOfDay(DateTime.now());
-    return [
-      (label: 'Today', range: DateTimeRange(start: today, end: today)),
-      (
-        label: 'Last 7 days',
-        range: DateTimeRange(
-          start: DateTime(today.year, today.month, today.day - 6),
-          end: today,
-        ),
-      ),
-      (
-        label: 'This month',
-        range: DateTimeRange(
-          start: DateTime(today.year, today.month, 1),
-          end: today,
-        ),
-      ),
-    ];
-  }
-
-  bool _isPresetActive(DateTimeRange preset, DateTimeRange? active) {
-    if (active == null) return false;
-    return startOfDay(active.start) == preset.start && startOfDay(active.end) == preset.end;
-  }
-
-  /// 'Aug 3, 2026' for a single day, otherwise 'Jul 28 - Aug 3, 2026'.
-  String _formatFilterRange(DateTimeRange range) {
-    if (startOfDay(range.start) == startOfDay(range.end)) {
-      return DateFormat.yMMMd().format(range.start);
-    }
-    return '${DateFormat('MMM d').format(range.start)} - ${DateFormat.yMMMd().format(range.end)}';
   }
 
   /// Measurements bucketed under a header per calendar day, newest day
